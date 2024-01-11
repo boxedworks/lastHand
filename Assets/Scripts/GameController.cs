@@ -14,6 +14,9 @@ public class GameController : MonoBehaviour
     s_Singleton = this;
 
     new CardController();
+    new ObjectController();
+
+    new ObjectController.CardObject(new Vector2Int(0, 0));
 
     // Start network
 #if UNITY_EDITOR
