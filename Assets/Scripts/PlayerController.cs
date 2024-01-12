@@ -188,7 +188,7 @@ public class PlayerController : MonoBehaviour
 
       // Translate and sanitize selected tile
       var tileMapSize = ObjectController.s_TileMapSize;
-      var tilePos = new Vector2Int((int)Mathf.RoundToInt(hitpoint.x / 5f + tileMapSize.x / 2f), (int)Mathf.RoundToInt(hitpoint.z / 5f + tileMapSize.y / 2f));
+      var tilePos = new Vector2Int((int)Mathf.RoundToInt(hitpoint.x / 5f + tileMapSize.x / 2f - 0.5f), (int)Mathf.RoundToInt(hitpoint.z / 5f + tileMapSize.y / 2f - 0.5f));
       if (tilePos.x > -1 && tilePos.x < tileMapSize.x && tilePos.y >= 0 && tilePos.y < tileMapSize.x)
       {
         var img = ObjectController.s_Singleton.GetTileMapImage(tilePos);
@@ -214,7 +214,22 @@ public class PlayerController : MonoBehaviour
     })
     {
       if (Input.GetKey(inputPair.keyCode))
+      {
         Camera.main.transform.position += inputPair.direction * Time.deltaTime * 15f;
+        _cameraSavePos = Camera.main.transform.position;
+      }
+    }
+
+    if (Input.GetMouseButtonDown(2))
+    {
+      _middleMouseDownPos = Input.mousePosition;
+      _cameraSavePos = Camera.main.transform.position;
+    }
+    if (Input.GetMouseButton(2))
+    {
+      var mouseDiff = Input.mousePosition - _middleMouseDownPos;
+      Camera.main.transform.position = _cameraSavePos + mouseDiff;
     }
   }
+  Vector3 _middleMouseDownPos, _cameraSavePos;
 }

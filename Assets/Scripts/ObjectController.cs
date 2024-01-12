@@ -21,18 +21,16 @@ public class ObjectController
     //
     _tileMap = new();
     _tileMapSize = new Vector2Int(10, 10);
-    var uiElementsBase = GameObject.Instantiate(GameObject.Find("TileMapUI").transform.GetChild(0).gameObject).transform;
-    uiElementsBase.parent = GameObject.Find("TileMapUI").transform;
+    var uiElemntsBaseRef = GameObject.Find("TileMapUI").transform.GetChild(0).GetChild(0);
+    var uiElementsBase = GameObject.Instantiate(uiElemntsBaseRef.gameObject, uiElemntsBaseRef.parent).transform;
     uiElementsBase.gameObject.SetActive(true);
     for (var x = 1; x < _tileMapSize.x; x++)
     {
-      var uiTile = GameObject.Instantiate(uiElementsBase.GetChild(0).gameObject).transform;
-      uiTile.parent = uiElementsBase;
+      var uiTile = GameObject.Instantiate(uiElementsBase.GetChild(0).gameObject, uiElementsBase).transform;
     }
     for (var y = 1; y < _tileMapSize.y; y++)
     {
-      var uiElementsRow = GameObject.Instantiate(uiElementsBase.gameObject).transform;
-      uiElementsRow.parent = uiElementsBase.parent;
+      var uiElementsRow = GameObject.Instantiate(uiElementsBase.gameObject, uiElementsBase.parent).transform;
     }
   }
 
@@ -76,7 +74,7 @@ public class ObjectController
   //
   public UnityEngine.UI.Image GetTileMapImage(Vector2Int position)
   {
-    return GameObject.Find("TileMapUI").transform.GetChild(0).GetChild(position.y).GetChild(position.x).GetComponent<UnityEngine.UI.Image>();
+    return GameObject.Find("TileMapUI").transform.GetChild(0).GetChild(position.y + 1).GetChild(position.x).GetComponent<UnityEngine.UI.Image>();
   }
 
   // Objects on the tilemap that can be affected by cards
@@ -133,7 +131,9 @@ public class ObjectController
 
       // Set position
       _Position = position;
-      _gameObject.transform.position = new Vector3(position.x - 5f * 5f, 0f, position.y - 4.5f * 5f);
+
+      var tileMapSize = ObjectController.s_TileMapSize;
+      _gameObject.transform.position = new Vector3(position.x - tileMapSize.x / 2f * 5f + 5f / 2f, 0f, position.y - tileMapSize.y / 2f * 5f + 5f / 2f);
     }
   }
 
