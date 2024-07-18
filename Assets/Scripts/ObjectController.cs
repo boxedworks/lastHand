@@ -20,7 +20,7 @@ public class ObjectController
 
     //
     _tileMap = new();
-    _tileMapSize = new Vector2Int(10, 10);
+    _tileMapSize = new Vector2Int(6, 6);
     var uiElemntsBaseRef = GameObject.Find("TileMapUI").transform.GetChild(0).GetChild(0);
     var uiElementsBase = GameObject.Instantiate(uiElemntsBaseRef.gameObject, uiElemntsBaseRef.parent).transform;
     uiElementsBase.gameObject.SetActive(true);
