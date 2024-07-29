@@ -14,7 +14,7 @@ public class CardController
     s_Singleton = this;
 
     //
-    _CardBase = GameObject.Find("CardBase");
+    _CardBase = GameObject.Find("PlayerHand").transform.Find("CardBase").gameObject;
     _CardBase.SetActive(false);
 
     // Create card data
@@ -30,8 +30,39 @@ public class CardController
     {
       TextTitle = "Fireball",
       TextDescription = "Target takes 5 damage.",
+      Cost = 2
+    });
+    RegisterCard(new CardData()
+    {
+      TextTitle = "Sear",
+      TextDescription = "Target takes 1 damage.",
       Cost = 1
     });
+  }
+
+  //
+  public static GameObject SpawnCardBase(int cardId, Transform parent, Vector3 spawnPosition)
+  {
+    var cardBase = GameObject.Instantiate(s_Singleton._CardBase);
+    (cardBase.transform as RectTransform).SetParent(parent);
+
+    // Set flavor texts
+    SetCardBaseData(cardBase, cardId);
+
+    cardBase.transform.position = spawnPosition;
+    cardBase.SetActive(true);
+
+    return cardBase;
+  }
+  public static void SetCardBaseData(GameObject cardBase, int cardId)
+  {
+    var cardData = GetCardData(cardId);
+
+    cardBase.name = $"{cardId}";
+
+    cardBase.transform.GetChild(0).GetChild(1).GetChild(0).GetChild(1).GetComponent<TMPro.TextMeshProUGUI>().text = cardData.TextTitle;
+    cardBase.transform.GetChild(0).GetChild(1).GetChild(2).GetChild(1).GetComponent<TMPro.TextMeshProUGUI>().text = cardData.TextDescription;
+    cardBase.transform.GetChild(0).GetChild(2).GetChild(2).GetComponent<TMPro.TextMeshProUGUI>().text = $"{cardData.Cost}";
   }
 
   //
@@ -55,5 +86,14 @@ public class CardController
   public static void PlayCard(int cardId)
   {
 
+  }
+
+  // Each object represents a card
+  public struct CardHandData
+  {
+    public int Id;
+    public CardData Data { get { return CardController.GetCardData(Id); } }
+
+    public GameObject GameObject;
   }
 }
