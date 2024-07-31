@@ -8,16 +8,18 @@ public class PlayerController : MonoBehaviour
   public HandController _Hand;
   public DeckController _Deck;
 
+  public Vector2Int _TileHovered { get { return _tilemapController._TileHovered; } }
+
   //
   TilemapController _tilemapController;
-  class TilemapController
+  public class TilemapController
   {
 
-    Vector2Int _tileHovered, _tileSelected;
+    public Vector2Int _TileHovered, _TileSelected;
 
     public TilemapController()
     {
-      _tileHovered = _tileSelected = new Vector2Int(-1, -1);
+      _TileHovered = _TileSelected = new Vector2Int(-1, -1);
     }
 
     //
@@ -33,18 +35,21 @@ public class PlayerController : MonoBehaviour
         var hitpoint = raycasthit.point;
 
         //
-        var oldHover = _tileHovered;
+        var oldHover = _TileHovered;
 
         // Translate and sanitize selected tile
         var tileMapSize = ObjectController.s_TileMapSize;
-        var tilePos = new Vector2Int((int)Mathf.RoundToInt(hitpoint.x / 5f + tileMapSize.x / 2f - 0.5f), (int)Mathf.RoundToInt(hitpoint.z / 5f + tileMapSize.y / 2f - 0.5f));
+        var tilePos = new Vector2Int(
+          (int)Mathf.RoundToInt(hitpoint.x / 5f + tileMapSize.x / 2f - 0.5f),
+          (int)Mathf.RoundToInt(hitpoint.z / 5f + tileMapSize.y / 2f - 0.5f)
+        );
         if (tilePos.x > -1 && tilePos.x < tileMapSize.x && tilePos.y >= 0 && tilePos.y < tileMapSize.x)
         {
 
           // New hover
-          _tileHovered = tilePos;
+          _TileHovered = tilePos;
 
-          if (_tileHovered != _tileSelected)
+          if (_TileHovered != _TileSelected)
           {
             var img = ObjectController.s_Singleton.GetTileMapImage(tilePos);
             img.color = Color.gray;
@@ -54,10 +59,10 @@ public class PlayerController : MonoBehaviour
           if (Input.GetMouseButtonUp(0))
           {
 
-            var oldSelected = _tileSelected;
-            _tileSelected = tilePos;
+            var oldSelected = _TileSelected;
+            _TileSelected = tilePos;
 
-            if (oldSelected.x != -1 && oldSelected != _tileSelected)
+            if (oldSelected.x != -1 && oldSelected != _TileSelected)
             {
               var img = ObjectController.s_Singleton.GetTileMapImage(oldSelected);
               img.color = Color.white;
@@ -77,15 +82,26 @@ public class PlayerController : MonoBehaviour
 
         // Tile out of bounds
         else
-          _tileHovered = new Vector2Int(-1, -1);
+          _TileHovered = new Vector2Int(-1, -1);
 
         // Old hover
-        if (oldHover.x != -1 && oldHover != _tileHovered && oldHover != _tileSelected)
+        if (oldHover.x != -1 && oldHover != _TileHovered && oldHover != _TileSelected)
         {
           var img = ObjectController.s_Singleton.GetTileMapImage(oldHover);
           img.color = Color.white;
         }
       }
+    }
+
+    //
+    public static Vector2 GetTileGameObjectPosition(Vector2Int tilePos)
+    {
+      var tilemapSize = ObjectController.s_TileMapSize;
+      var gameObjectSize = ObjectController.s_TileMapGameObjectSize;
+      return new Vector2(
+        tilePos.x * gameObjectSize.x + gameObjectSize.x / 2f - tilemapSize.x / 2f * gameObjectSize.x,
+        tilePos.y * gameObjectSize.y + gameObjectSize.y / 2f - tilemapSize.y / 2f * gameObjectSize.y
+      );
     }
   }
 
@@ -115,11 +131,11 @@ public class PlayerController : MonoBehaviour
 
         // Arrow keys
         foreach (var inputPair in new (KeyCode keyCode, Vector3 direction)[] {
-      (keyCode: KeyCode.LeftArrow, direction: new Vector3(-1f, 0f, 0f)),
-      (keyCode: KeyCode.RightArrow, direction: new Vector3(1f, 0f, 0f)),
-      (keyCode: KeyCode.UpArrow, direction: new Vector3(0f, 0f, 1f)),
-      (keyCode: KeyCode.DownArrow, direction: new Vector3(0f, 0f, -1f)),
-    })
+          (keyCode: KeyCode.LeftArrow, direction: new Vector3(-1f, 0f, 0f)),
+          (keyCode: KeyCode.RightArrow, direction: new Vector3(1f, 0f, 0f)),
+          (keyCode: KeyCode.UpArrow, direction: new Vector3(0f, 0f, 1f)),
+          (keyCode: KeyCode.DownArrow, direction: new Vector3(0f, 0f, -1f)),
+        })
         {
           if (Input.GetKey(inputPair.keyCode))
           {

@@ -52,7 +52,7 @@ public class DeckController
       {
         Id = 0
       });
-    for (var i = 0; i < 25; i++)
+    for (var i = 0; i < 5; i++)
       _cardsDeck.Add(new CardController.CardHandData()
       {
         Id = 1
@@ -83,7 +83,7 @@ public class DeckController
     // Reshuffle card animation
     if (_reshuffling)
     {
-      if (_reshuffleAmount > 0 && Time.time - _lastReshuffleTime > 0.2f)
+      if (_reshuffleAmount > 0 && Time.time - _lastReshuffleTime > 0.1f)
       {
 
         _lastReshuffleTime = Time.time;
@@ -108,7 +108,7 @@ public class DeckController
         var cardObject = _reshufflingCards[i];
 
         var desiredPosition = _DeckIcon.position;
-        cardObject.transform.position += (desiredPosition - cardObject.transform.position) * Time.deltaTime * 5f;
+        cardObject.transform.position += (desiredPosition - cardObject.transform.position) * Time.deltaTime * 12f;
 
         if ((desiredPosition - cardObject.transform.position).magnitude < 20f)
         {

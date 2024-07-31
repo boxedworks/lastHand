@@ -140,7 +140,7 @@ public class HandController
         if (Input.GetMouseButtonUp(0))
         {
           if (mousePos.y > mousePosForCardPlay)
-            OnCardPlayed();
+            OnCardPlayed(_playerController._TileHovered);
           else
           {
             _cardSelected.HandIndex = -1;
@@ -158,7 +158,7 @@ public class HandController
     Debug.Log($"Card selected: {_cardSelected.CardData.TextTitle}");
   }
 
-  void OnCardPlayed()
+  void OnCardPlayed(Vector2Int atPos)
   {
     Debug.Log($"Card played: {_cardSelected.CardData.TextTitle}");
 
@@ -169,6 +169,9 @@ public class HandController
     _cardSelected.HandIndex = -1;
 
     _cardFx_Selected.gameObject.SetActive(false);
+
+    // Test summon
+    new ObjectController.CardObject(atPos);
   }
 
   // Add a card to the player's hand by Id

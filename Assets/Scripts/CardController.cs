@@ -69,31 +69,47 @@ public class CardController
   [System.Serializable]
   public struct CardData
   {
+
+    // Unique card id
     public int CardId;
 
-    public string TextTitle, TextDescription;
+    // Card play cost
     public int Cost;
-  }
-  Dictionary<int, CardData> _cardData;
+
+    // Flavor text
+    public string TextTitle, TextDescription;
+
+    /// Card behviors
+    // Movement pattern; ex "fflf" = forward, forward, left, forward
+    public string MovementPattern;
+
+    //
+    public int StartingHealth, StartingAttack;
+
+}
+Dictionary<int, CardData> _cardData;
+
+//
+public static CardData GetCardData(int cardId)
+{
+  return s_Singleton._cardData[cardId];
+}
+
+//
+public static void PlayCard(int cardId)
+{
+
+}
+
+// Each object represents a card
+public struct CardHandData
+{
+  public int Id;
+  public CardData Data { get { return CardController.GetCardData(Id); } }
+
+  public GameObject GameObject;
+}
 
   //
-  public static CardData GetCardData(int cardId)
-  {
-    return s_Singleton._cardData[cardId];
-  }
 
-  //
-  public static void PlayCard(int cardId)
-  {
-
-  }
-
-  // Each object represents a card
-  public struct CardHandData
-  {
-    public int Id;
-    public CardData Data { get { return CardController.GetCardData(Id); } }
-
-    public GameObject GameObject;
-  }
 }

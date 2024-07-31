@@ -14,6 +14,7 @@ public class ObjectController
   Dictionary<Vector2Int, CardObject> _tileMap;
   Vector2Int _tileMapSize;
   public static Vector2Int s_TileMapSize { get { return s_Singleton._tileMapSize; } }
+  public static Vector2 s_TileMapGameObjectSize = new Vector2(5f, 5f);
   public ObjectController()
   {
     s_Singleton = this;
@@ -83,7 +84,10 @@ public class ObjectController
     public static int s_id;
     public int _Id;
 
+    // Tile position
     public Vector2Int _Position;
+
+    // Holds local position offsets; allows one object to take up multiple tiles
     Vector2Int[] _positionLocalOffsets;
 
     GameObject _gameObject;
@@ -113,27 +117,31 @@ public class ObjectController
     }
 
     //
-    public void SetPosition(Vector2Int position)
+    public void SetPosition(Vector2Int atTile)
     {
 
       //
-      if (position == _Position) return;
+      if (atTile == _Position) return;
 
       // Check can move per offset
-      if (!CanSetPosition(position)) return;
+      if (!CanSetPosition(atTile)) return;
 
       // Move per offset
       foreach (var offset in _positionLocalOffsets)
       {
         ObjectController.SetPosition(_Position + offset, null);
-        ObjectController.SetPosition(position + offset, this);
+        ObjectController.SetPosition(atTile + offset, this);
       }
 
       // Set position
-      _Position = position;
+      _Position = atTile;
 
-      var tileMapSize = ObjectController.s_TileMapSize;
-      _gameObject.transform.position = new Vector3(position.x - tileMapSize.x / 2f * 5f + 5f / 2f, 0f, position.y - tileMapSize.y / 2f * 5f + 5f / 2f);
+      var gamoeObjectPositon = PlayerController.TilemapController.GetTileGameObjectPosition(atTile);
+      _gameObject.transform.position = new Vector3(
+        gamoeObjectPositon.x,
+        0f,
+        gamoeObjectPositon.y
+      );
     }
   }
 
