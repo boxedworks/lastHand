@@ -10,6 +10,8 @@ public class GameController : MonoBehaviour
 
   public BeatController _beatController;
 
+  EnemyController _enemyController;
+
   // Start is called before the first frame update
   void Start()
   {
@@ -18,7 +20,15 @@ public class GameController : MonoBehaviour
     new CardController();
     new ObjectController();
 
+    _enemyController = new();
+
     //_beatController = new();
+
+    //
+    GameObject.Find("EndTurnButton").GetComponent<UnityEngine.UI.Button>().onClick.AddListener(() =>
+    {
+      PlayerController.s_Players[0].OnTurnEnd();
+    });
 
     // Start network
 #if UNITY_EDITOR
@@ -33,6 +43,43 @@ public class GameController : MonoBehaviour
   void Update()
   {
     //_beatController.Update();
+
+    ObjectController.s_Singleton.Update();
+  }
+
+  //
+  public void OnTurnsEnded(){
+    ObjectController.s_Singleton.HandleCardObjects();
+  }
+
+  //
+  public class EnemyController
+  {
+
+    //
+    public EnemyController()
+    {
+      new ObjectController.CardObject(0, new Vector2Int(4, 7), CardController.GetCardData(0));
+    }
+
+    //
+    public void Update()
+    {
+
+    }
+
+    //
+    public void OnTurnEnd()
+    {
+
+      // Move units
+
+
+      //
+
+
+    }
+
   }
 
   public class BeatController

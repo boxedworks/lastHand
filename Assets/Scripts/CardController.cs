@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class CardController
 {
@@ -26,18 +27,49 @@ public class CardController
       _cardData.Add(cardId, cardData);
     }
 
+    // Test cards
     RegisterCard(new CardData()
     {
-      TextTitle = "Fireball",
-      TextDescription = "Target takes 5 damage.",
-      Cost = 2
+      TextTitle = "Bat",
+      TextDescription = "",
+
+      BehaviorPattern = "f",
+
+      CardInstanceData = new CardInstanceData()
+      {
+        Cost = 1,
+
+        Health = 1,
+        Attack = 1
+      }
     });
+
     RegisterCard(new CardData()
     {
       TextTitle = "Sear",
       TextDescription = "Target takes 1 damage.",
-      Cost = 1
+
+      CardInstanceData = new CardInstanceData()
+      {
+        Cost = 1,
+
+        Attack = 1
+      }
     });
+    RegisterCard(new CardData()
+    {
+      TextTitle = "Fireball",
+      TextDescription = "Target takes 5 damage.",
+
+      CardInstanceData = new CardInstanceData()
+      {
+        Cost = 2,
+
+        Attack = 5
+      }
+    });
+
+    //
   }
 
   //
@@ -58,11 +90,24 @@ public class CardController
   {
     var cardData = GetCardData(cardId);
 
-    cardBase.name = $"{cardId}";
+    SetCardBaseData(cardBase, cardData);
+  }
+  public static void SetCardBaseData(GameObject cardBase, CardData cardData)
+  {
+    cardBase.name = $"{cardData.CardId}";
 
+    // Flavor text
     cardBase.transform.GetChild(0).GetChild(1).GetChild(0).GetChild(1).GetComponent<TMPro.TextMeshProUGUI>().text = cardData.TextTitle;
     cardBase.transform.GetChild(0).GetChild(1).GetChild(2).GetChild(1).GetComponent<TMPro.TextMeshProUGUI>().text = cardData.TextDescription;
-    cardBase.transform.GetChild(0).GetChild(2).GetChild(2).GetComponent<TMPro.TextMeshProUGUI>().text = $"{cardData.Cost}";
+
+    // Img
+    cardBase.transform.GetChild(0).GetChild(1).GetChild(1).GetChild(0).GetChild(0).GetComponent<Image>().sprite = Resources.Load<Sprite>($"CardImages/{cardData.CardId}");
+
+    // Cost
+    cardBase.transform.GetChild(0).GetChild(2).GetChild(2).GetComponent<TMPro.TextMeshProUGUI>().text = $"{cardData.CardInstanceData.Cost}";
+
+    // Attack / health
+    cardBase.transform.GetChild(0).GetChild(3).GetChild(2).GetComponent<TMPro.TextMeshProUGUI>().text = $"{cardData.CardInstanceData.Attack} / {cardData.CardInstanceData.Health}";
   }
 
   //
@@ -73,42 +118,51 @@ public class CardController
     // Unique card id
     public int CardId;
 
-    // Card play cost
-    public int Cost;
-
     // Flavor text
     public string TextTitle, TextDescription;
 
-    /// Card behviors
-    // Movement pattern; ex "fflf" = forward, forward, left, forward
-    public string MovementPattern;
+    /// Card behaviors
+    // "m1b1:move-f"
+    public string BehaviorPattern;
 
     //
-    public int StartingHealth, StartingAttack;
+    public CardInstanceData CardInstanceData;
+  }
+  Dictionary<int, CardData> _cardData;
 
-}
-Dictionary<int, CardData> _cardData;
+  // Data held by a card that can be differerent per-card
+  [System.Serializable]
+  public struct CardInstanceData
+  {
 
-//
-public static CardData GetCardData(int cardId)
-{
-  return s_Singleton._cardData[cardId];
-}
+    // Card play cost
+    public int Cost;
 
-//
-public static void PlayCard(int cardId)
-{
+    //
+    public int Health, Attack;
 
-}
+  }
 
-// Each object represents a card
-public struct CardHandData
-{
-  public int Id;
-  public CardData Data { get { return CardController.GetCardData(Id); } }
+  //
+  public static CardData GetCardData(int cardId)
+  {
+    return s_Singleton._cardData[cardId];
+  }
 
-  public GameObject GameObject;
-}
+  //
+  public static void PlayCard(int cardId)
+  {
+
+  }
+
+  // Each object represents a card
+  public struct CardHandData
+  {
+    public int Id;
+    public CardData Data { get { return CardController.GetCardData(Id); } }
+
+    public GameObject GameObject;
+  }
 
   //
 

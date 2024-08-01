@@ -155,15 +155,17 @@ public class HandController
   {
     _cardSelected.HandIndex = _cardFocused.HandIndex;
 
-    Debug.Log($"Card selected: {_cardSelected.CardData.TextTitle}");
+    //Debug.Log($"Card selected: {_cardSelected.CardData.TextTitle}");
   }
 
   void OnCardPlayed(Vector2Int atPos)
   {
-    Debug.Log($"Card played: {_cardSelected.CardData.TextTitle}");
+    //Debug.Log($"Card played: {_cardSelected.CardData.TextTitle}");
 
     if (_cardFx_Selected.parent == _cardSelected.GameObject.transform)
       _cardFx_Selected.SetParent(_cardFx_Container);
+
+    var cardData = _cardSelected.CardData;
 
     RemoveCard(_cardSelected.HandIndex);
     _cardSelected.HandIndex = -1;
@@ -171,7 +173,7 @@ public class HandController
     _cardFx_Selected.gameObject.SetActive(false);
 
     // Test summon
-    new ObjectController.CardObject(atPos);
+    new ObjectController.CardObject(_playerController._OwnerId, atPos, cardData);
   }
 
   // Add a card to the player's hand by Id

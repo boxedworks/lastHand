@@ -3,8 +3,14 @@ using System.Collections.Generic;
 using Unity.VisualScripting;
 using UnityEngine;
 
+using System.Linq;
+
 public class PlayerController : MonoBehaviour
 {
+  public static List<PlayerController> s_Players;
+
+  public int _OwnerId;
+
   public HandController _Hand;
   public DeckController _Deck;
 
@@ -40,10 +46,20 @@ public class PlayerController : MonoBehaviour
         // Translate and sanitize selected tile
         var tileMapSize = ObjectController.s_TileMapSize;
         var tilePos = new Vector2Int(
-          (int)Mathf.RoundToInt(hitpoint.x / 5f + tileMapSize.x / 2f - 0.5f),
-          (int)Mathf.RoundToInt(hitpoint.z / 5f + tileMapSize.y / 2f - 0.5f)
+          Mathf.RoundToInt(hitpoint.x / 5f + tileMapSize.x / 2f - 0.5f),
+          Mathf.RoundToInt(hitpoint.z / 5f + tileMapSize.y / 2f - 0.5f)
         );
-        if (tilePos.x > -1 && tilePos.x < tileMapSize.x && tilePos.y >= 0 && tilePos.y < tileMapSize.x)
+
+        var xMin = GetTileGameObjectPosition(new Vector2Int(0, 0)).x - ObjectController.s_TileMapGameObjectSize.x / 2f;
+        var xMax = GetTileGameObjectPosition(new Vector2Int(ObjectController.s_TileMapSize.x - 1, 0)).x + ObjectController.s_TileMapGameObjectSize.x / 2.1f;
+
+        var yMin = GetTileGameObjectPosition(new Vector2Int(0, 0)).y - ObjectController.s_TileMapGameObjectSize.y / 2f;
+        var yMax = GetTileGameObjectPosition(new Vector2Int(0, ObjectController.s_TileMapSize.y - 1)).y + ObjectController.s_TileMapGameObjectSize.y / 2.1f;
+
+        if (
+          hitpoint.x > xMin && hitpoint.x < xMax && hitpoint.y > yMin && hitpoint.y < yMax &&
+          tilePos.x > -1 && tilePos.x < ObjectController.s_TileMapSize.x && tilePos.y > -1 && tilePos.y < ObjectController.s_TileMapSize.y
+          )
         {
 
           // New hover
@@ -75,8 +91,11 @@ public class PlayerController : MonoBehaviour
 
             var cardObject = ObjectController.GetCardObject(tilePos);
             if (cardObject != null)
-              Debug.Log($"Selected cardObject: {cardObject._Id}");
+            {
+              Debug.Log($"Selected cardObject: {cardObject._Id} {cardObject._CardData.TextTitle}");
 
+              DeckController.ShowCardObjectData(cardObject._CardData);
+            }
           }
         }
 
@@ -94,6 +113,14 @@ public class PlayerController : MonoBehaviour
     }
 
     //
+    public void OnTurnEnd()
+    {
+
+
+
+    }
+
+    //
     public static Vector2 GetTileGameObjectPosition(Vector2Int tilePos)
     {
       var tilemapSize = ObjectController.s_TileMapSize;
@@ -108,6 +135,11 @@ public class PlayerController : MonoBehaviour
   // Start is called before the first frame update
   void Start()
   {
+    if (s_Players == null) s_Players = new();
+    s_Players.Add(this);
+
+    _OwnerId = 1;
+
     _Deck = new(this);
     _Hand = new(this);
     _tilemapController = new();
@@ -161,4 +193,10 @@ public class PlayerController : MonoBehaviour
     }
   }
   Vector3 _middleMouseDownPos, _cameraSavePos;
+
+  //
+  public void OnTurnEnd()
+  {
+    GameController.s_Singleton.OnTurnsEnded();
+  }
 }

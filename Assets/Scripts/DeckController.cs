@@ -299,6 +299,15 @@ public class DeckController
   }
 
   //
+  public static void ShowCardObjectData(CardController.CardData cardData)
+  {
+    var cardBase = GameObject.Find("CardObjectDisplay").transform.GetChild(0).gameObject;
+
+    CardController.SetCardBaseData(cardBase, cardData);
+    cardBase.gameObject.SetActive(true);
+  }
+
+  //
   bool _displayingDeck;
   float _deckViewerYPosition;
   int _deckViewerRowHeight;
