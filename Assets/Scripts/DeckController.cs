@@ -50,12 +50,22 @@ public class DeckController
     for (var i = 0; i < 5; i++)
       _cardsDeck.Add(new CardController.CardHandData()
       {
-        Id = 0
+        Id = 11
       });
-    for (var i = 0; i < 5; i++)
+    for (var i = 0; i < 2; i++)
       _cardsDeck.Add(new CardController.CardHandData()
       {
-        Id = 1
+        Id = 12
+      });
+    /*for (var i = 0; i < 1; i++)
+      _cardsDeck.Add(new CardController.CardHandData()
+      {
+        Id = 13
+      });*/
+    for (var i = 0; i < 1; i++)
+      _cardsDeck.Add(new CardController.CardHandData()
+      {
+        Id = 19
       });
     _textDeckCount.text = $"{_cardsDeck.Count}";
 

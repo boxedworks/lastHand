@@ -59,7 +59,9 @@ public class GameController : MonoBehaviour
     //
     public EnemyController()
     {
-      new ObjectController.CardObject(0, new Vector2Int(4, 7), CardController.GetCardData(0));
+      new ObjectController.CardObject(0, new Vector2Int(4, 7), CardController.GetCardData(1));
+      new ObjectController.CardObject(0, new Vector2Int(2, 7), CardController.GetCardData(2));
+      new ObjectController.CardObject(0, new Vector2Int(2, 6), CardController.GetCardData(6));
     }
 
     //

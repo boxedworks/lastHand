@@ -58,23 +58,32 @@ public class ObjectController
         if (_currentTurnObject == null)
         {
           var nextObject = _turnObjects.Dequeue();
-
-          // Move
-          if (nextObject.CanMove())
+          if (nextObject != null && !nextObject._Destroyed)
           {
-            _currentTurnObject = GameController.s_Singleton.StartCoroutine(nextObject.SmoothMove(() =>
-            {
-              _currentTurnObject = null;
-            }));
-          }
 
-          // Attack if something in front
-          else
-          {
-            _currentTurnObject = GameController.s_Singleton.StartCoroutine(nextObject.SmoothStuck(() =>
+            // Move
+            if (nextObject.CanMove())
             {
-              _currentTurnObject = null;
-            }));
+              _currentTurnObject = GameController.s_Singleton.StartCoroutine(nextObject.SmoothMove(() =>
+              {
+                _currentTurnObject = null;
+              }));
+            }
+
+            // Attack if something in front
+            else
+            {
+              if (nextObject.CanAttack())
+                _currentTurnObject = GameController.s_Singleton.StartCoroutine(nextObject.SmoothAttack(() =>
+                {
+                  _currentTurnObject = null;
+                }));
+              else
+                _currentTurnObject = GameController.s_Singleton.StartCoroutine(nextObject.SmoothStuck(() =>
+                {
+                  _currentTurnObject = null;
+                }));
+            }
           }
         }
       }
@@ -159,12 +168,6 @@ public class ObjectController
     var cardObjects = new List<CardObject>();
     _takingTurn = true;
 
-    // Order system by x-y
-    var systemEntities = GetCardObjects(0);
-    systemEntities = systemEntities.OrderBy(c => c._Position.y).ThenBy(c => c._Position.x).ToList();
-    foreach (var cardObject in systemEntities)
-      cardObjects.Add(cardObject);
-
     // Order player(s) by x-y
     var playerEntitiesAll = new List<CardObject>();
     for (var i = 1; i < _objectsOwner.Count; i++)
@@ -178,6 +181,13 @@ public class ObjectController
     foreach (var cardObject in playerEntitiesAll)
       cardObjects.Add(cardObject);
 
+    // Order system by x-y
+    var systemEntities = GetCardObjects(0);
+    systemEntities = systemEntities.OrderBy(c => c._Position.y).ThenBy(c => c._Position.x).ToList();
+    foreach (var cardObject in systemEntities)
+      cardObjects.Add(cardObject);
+
+    //
     _turnObjects = new(cardObjects);
   }
 
@@ -192,6 +202,9 @@ public class ObjectController
   {
     public static int s_id;
     public int _Id;
+
+    //
+    public bool _Destroyed { get { return _gameObject == null; } }
 
     //
     public int _OwnerId;
@@ -213,11 +226,30 @@ public class ObjectController
       RegisterCardObject(this);
 
       //
-      _CardData = cardData;
+      _CardData = new()
+      {
+        CardId = cardData.CardId,
+
+        TextTitle = cardData.TextTitle,
+        TextDescription = cardData.TextDescription,
+
+        Deck = cardData.Deck,
+
+        BehaviorPattern = cardData.BehaviorPattern,
+
+        CardInstanceData = new()
+        {
+          Health = cardData.CardInstanceData.Health,
+          Attack = cardData.CardInstanceData.Attack,
+
+          Cost = cardData.CardInstanceData.Cost
+        }
+      };
 
       // Configure model
       _gameObject = GameObject.Instantiate(Resources.Load("CardObjects/Placeholder")) as GameObject;
-      _gameObject.transform.GetChild(0).GetChild(0).GetComponent<SpriteRenderer>().color = _OwnerId switch {
+      _gameObject.transform.GetChild(0).GetChild(0).GetComponent<SpriteRenderer>().color = _OwnerId switch
+      {
         1 => Color.red,
         2 => Color.blue,
 
@@ -229,6 +261,14 @@ public class ObjectController
       _Position = new Vector2Int(-100, -100);
       _positionLocalOffsets = new Vector2Int[] { Vector2Int.zero };
       SetPosition(spawnPosition);
+    }
+
+    //
+    public void Destroy()
+    {
+      UnregisterCardObject(this);
+      GameObject.Destroy(_gameObject);
+      _CardData = null;
     }
 
     //
@@ -297,9 +337,99 @@ public class ObjectController
       return IsEnemy(other);
     }
 
+    //
+    public IEnumerator SmoothTurnStart(Action onComplete)
+    {
+
+      // Check for start effects
+      Debug.Log($"{_CardData.TextTitle} .. {_CardData.HasStartEffect}");
+      if (_CardData.HasStartEffect)
+      {
+        //yield return new WaitForSeconds(0.5f);
+
+        // Get start effect
+        foreach (var effect in _CardData.BehaviorPattern.Split(','))
+        {
+
+          if (effect.StartsWith("start:"))
+          {
+            var effectDetails = effect[6..];
+            yield return ProcessEffect(effectDetails);
+          }
+
+        }
+
+      }
+
+      onComplete?.Invoke();
+    }
+
+    //
+    IEnumerator ProcessEffect(string effectType)
+    {
+
+      // Check buff
+      if (effectType.StartsWith("buff("))
+      {
+        var effectTargets = effectType[5..^1];
+        yield return EffectBuff(effectTargets);
+      }
+    }
+
+    //
+    IEnumerator EffectBuff(string effectTargets)
+    {
+
+      yield return new WaitForSeconds(0.5f);
+
+      foreach (var target in getTargets(effectTargets))
+      {
+        target._CardData.CardInstanceData.Health++;
+        target._CardData.CardInstanceData.Attack++;
+      }
+    }
+
+    CardObject[] getTargets(string targetString)
+    {
+      var targetList = new List<CardObject>();
+
+      // Check surrounding units
+      //allSurrounding:goblin
+      Debug.Log($"Gathering targets: {targetString}");
+      if (targetString.StartsWith("allSurrounding:"))
+      {
+        // Get list of all surrounding entities
+        void AddTarget(CardObject cardObject)
+        {
+          if (cardObject == null || cardObject._Destroyed) return;
+          targetList.Add(cardObject);
+        }
+        AddTarget(GetCardObject(new Vector2Int(_Position.x + 1, _Position.y)));
+        AddTarget(GetCardObject(new Vector2Int(_Position.x - 1, _Position.y)));
+        AddTarget(GetCardObject(new Vector2Int(_Position.x, _Position.y + 1)));
+        AddTarget(GetCardObject(new Vector2Int(_Position.x, _Position.y - 1)));
+
+        Debug.Log(targetList.Count);
+      }
+
+      // Filter by type
+      var target = targetString[15..];
+      targetList = targetList.Where(x => x._CardData.Deck == CardController.CardData.CardType.GOBLIN).ToList();
+      Debug.Log(targetList.Count);
+
+      //
+      return targetList.ToArray();
+    }
+
+
+    //
     public IEnumerator SmoothMove(Action onComplete)
     {
 
+      // Turn start
+      yield return SmoothTurnStart(null);
+
+      //
       var moveAmount = GetMovementDirection();
 
       var startTilePos = _Position;
@@ -325,9 +455,14 @@ public class ObjectController
       onComplete?.Invoke();
     }
 
+    //
     public IEnumerator SmoothStuck(Action onComplete)
     {
 
+      // Turn start
+      yield return SmoothTurnStart(null);
+
+      //
       var moveAmount = GetMovementDirection();
 
       var startTilePos = _Position;
@@ -351,6 +486,71 @@ public class ObjectController
       //_gameObject.transform.position = endPos;
       //SetPosition(endTilePos);
 
+      onComplete?.Invoke();
+    }
+
+    //
+    public IEnumerator SmoothAttack(Action onComplete)
+    {
+
+      // Turn start
+      yield return SmoothTurnStart(null);
+
+      //
+      var moveAmount = GetMovementDirection();
+
+      var startTilePos = _Position;
+      var endTilePos = startTilePos + moveAmount;
+
+      var startPos2 = PlayerController.TilemapController.GetTileGameObjectPosition(startTilePos);
+      var endPos2 = PlayerController.TilemapController.GetTileGameObjectPosition(endTilePos);
+
+      var startPos = new Vector3(startPos2.x, 0f, startPos2.y);
+      var endPos = new Vector3(endPos2.x, 0f, endPos2.y);
+
+      // Gather other
+      var other = GetCardObject(endTilePos);
+
+      //
+      var t = 1f;
+      var size = 0.35f;
+      var attacked = false;
+      while (t > 0f)
+      {
+        _gameObject.transform.position = Vector3.Lerp(startPos, endPos, -Math.Abs((1f - t) - size) + size);
+
+        yield return new WaitForSeconds(0.005f);
+        t -= 0.04f;
+
+        if (!attacked && t <= 0.5f)
+        {
+          attacked = true;
+
+          //
+
+          // Set health values
+          //_CardData.CardInstanceData.Health -= other._CardData.CardInstanceData.Attack;
+          other._CardData.CardInstanceData.Health -= _CardData.CardInstanceData.Attack;
+        }
+      }
+      //_gameObject.transform.position = endPos;
+      //SetPosition(endTilePos);
+
+      // Resolve altercation
+      IEnumerator CheckStatus(CardObject cardObject)
+      {
+
+        if (cardObject._CardData.CardInstanceData.Health <= 0)
+        {
+          yield return new WaitForSeconds(0.5f);
+          cardObject.Destroy();
+        }
+
+      }
+      //yield return CheckStatus(this);
+      yield return CheckStatus(other);
+
+      //
       onComplete?.Invoke();
     }
 

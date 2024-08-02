@@ -140,7 +140,13 @@ public class HandController
         if (Input.GetMouseButtonUp(0))
         {
           if (mousePos.y > mousePosForCardPlay)
-            OnCardPlayed(_playerController._TileHovered);
+          {
+            // Check can play card
+            if (canPlayCard())
+              OnCardPlayed(_playerController._TileHovered);
+            else
+              _cardSelected.HandIndex = -1;
+          }
           else
           {
             _cardSelected.HandIndex = -1;
@@ -148,6 +154,29 @@ public class HandController
         }
 
     }
+  }
+
+  //
+  bool canPlayCard()
+  {
+    var cardObject = ObjectController.GetCardObject(_playerController._TileHovered);
+
+    // Check spell
+    var isSpell = _cardSelected.CardData.IsSpell;
+    if (isSpell)
+    {
+      if (cardObject != null)
+        return true;
+      return false;
+    }
+
+    // Check normal unit
+    if (cardObject == null)
+    {
+      return true;
+    }
+
+    return false;
   }
 
   //
@@ -172,8 +201,22 @@ public class HandController
 
     _cardFx_Selected.gameObject.SetActive(false);
 
-    // Test summon
-    new ObjectController.CardObject(_playerController._OwnerId, atPos, cardData);
+    // Check spell
+    if (cardData.IsSpell)
+    {
+
+      // Spell effects
+
+    }
+
+
+    // Unit
+    else
+    {
+      new ObjectController.CardObject(_playerController._OwnerId, atPos, cardData);
+
+      // Summon effects
+    }
   }
 
   // Add a card to the player's hand by Id

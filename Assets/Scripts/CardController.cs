@@ -20,18 +20,20 @@ public class CardController
 
     // Create card data
     _cardData = new();
-    void RegisterCard(CardData cardData)
+    void RegisterCard(int cardId, CardData cardData)
     {
-      var cardId = _cardData.Count;
+      //var cardId = _cardData.Count;
       cardData.CardId = cardId;
       _cardData.Add(cardId, cardData);
     }
 
     // Test cards
-    RegisterCard(new CardData()
+    RegisterCard(1, new CardData()
     {
       TextTitle = "Bat",
       TextDescription = "",
+
+      Deck = CardData.CardType.BEAST,
 
       BehaviorPattern = "f",
 
@@ -43,29 +45,108 @@ public class CardController
         Attack = 1
       }
     });
-
-    RegisterCard(new CardData()
+    RegisterCard(2, new CardData()
     {
-      TextTitle = "Sear",
-      TextDescription = "Target takes 1 damage.",
+      TextTitle = "Goblin Scout",
+      TextDescription = "",
+
+      Deck = CardData.CardType.GOBLIN,
+
+      BehaviorPattern = "f,frontline:deploy(1)",
 
       CardInstanceData = new CardInstanceData()
       {
         Cost = 1,
 
+        Health = 1,
         Attack = 1
       }
     });
-    RegisterCard(new CardData()
+    RegisterCard(3, new CardData()
     {
-      TextTitle = "Fireball",
-      TextDescription = "Target takes 5 damage.",
+      TextTitle = "Goblin Archer",
+      TextDescription = "",
+
+      Deck = CardData.CardType.GOBLIN,
+
+      BehaviorPattern = "s,attack(randomEnemy)",
 
       CardInstanceData = new CardInstanceData()
       {
         Cost = 2,
 
-        Attack = 5
+        Health = 1,
+        Attack = 1
+      }
+    });
+    RegisterCard(6, new CardData()
+    {
+      TextTitle = "Goblin Warrior",
+      TextDescription = "",
+
+      Deck = CardData.CardType.GOBLIN,
+
+      BehaviorPattern = "f,start:buff(allSurrounding:goblin)",
+
+      CardInstanceData = new CardInstanceData()
+      {
+        Cost = 3,
+
+        Health = 5,
+        Attack = 1
+      }
+    });
+
+
+    RegisterCard(11, new CardData()
+    {
+      TextTitle = "Footsoldier",
+      TextDescription = "",
+
+      Deck = CardData.CardType.KNIGHT,
+
+      BehaviorPattern = "f",
+
+      CardInstanceData = new CardInstanceData()
+      {
+        Cost = 1,
+
+        Health = 1,
+        Attack = 1
+      }
+    });
+    RegisterCard(12, new CardData()
+    {
+      TextTitle = "Guard",
+      TextDescription = "",
+
+      Deck = CardData.CardType.KNIGHT,
+
+      BehaviorPattern = "f",
+
+      CardInstanceData = new CardInstanceData()
+      {
+        Cost = 2,
+
+        Health = 3,
+        Attack = 1
+      }
+    });
+    RegisterCard(19, new CardData()
+    {
+      TextTitle = "Prepare",
+      TextDescription = "",
+
+      Deck = CardData.CardType.KNIGHT,
+
+      BehaviorPattern = "spell,target:health(+3)",
+
+      CardInstanceData = new CardInstanceData()
+      {
+        Cost = 1,
+
+        Health = 0,
+        Attack = 0
       }
     });
 
@@ -112,7 +193,7 @@ public class CardController
 
   //
   [System.Serializable]
-  public struct CardData
+  public class CardData
   {
 
     // Unique card id
@@ -121,9 +202,22 @@ public class CardController
     // Flavor text
     public string TextTitle, TextDescription;
 
+    //
+    public enum CardType
+    {
+      NOT_SET,
+
+      BEAST,
+      GOBLIN,
+      KNIGHT,
+    }
+    public CardType Deck;
+
     /// Card behaviors
     // "m1b1:move-f"
     public string BehaviorPattern;
+    public bool IsSpell { get { return BehaviorPattern.Contains("spell,"); } }
+    public bool HasStartEffect { get { return BehaviorPattern.Contains("start:"); } }
 
     //
     public CardInstanceData CardInstanceData;
@@ -132,7 +226,7 @@ public class CardController
 
   // Data held by a card that can be differerent per-card
   [System.Serializable]
-  public struct CardInstanceData
+  public class CardInstanceData
   {
 
     // Card play cost
