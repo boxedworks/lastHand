@@ -52,7 +52,7 @@ public class CardController
 
       Deck = CardData.CardType.GOBLIN,
 
-      BehaviorPattern = "f,frontline:deploy(1)",
+      BehaviorPattern = "f;tap:move;battlecross:deploy(self)",
 
       CardInstanceData = new CardInstanceData()
       {
@@ -69,7 +69,7 @@ public class CardController
 
       Deck = CardData.CardType.GOBLIN,
 
-      BehaviorPattern = "s,attack(randomEnemy)",
+      BehaviorPattern = "0;start:attack(randomEnemy)",
 
       CardInstanceData = new CardInstanceData()
       {
@@ -86,7 +86,7 @@ public class CardController
 
       Deck = CardData.CardType.GOBLIN,
 
-      BehaviorPattern = "f,start:buff(allSurrounding:goblin)",
+      BehaviorPattern = "f;tap:buff(1,1,allSurrounding:goblin)",
 
       CardInstanceData = new CardInstanceData()
       {
@@ -98,14 +98,14 @@ public class CardController
     });
 
 
-    RegisterCard(11, new CardData()
+    RegisterCard(19, new CardData()
     {
       TextTitle = "Footsoldier",
       TextDescription = "",
 
       Deck = CardData.CardType.KNIGHT,
 
-      BehaviorPattern = "f",
+      BehaviorPattern = "f;tap:move",
 
       CardInstanceData = new CardInstanceData()
       {
@@ -115,14 +115,14 @@ public class CardController
         Attack = 1
       }
     });
-    RegisterCard(12, new CardData()
+    RegisterCard(20, new CardData()
     {
       TextTitle = "Guard",
       TextDescription = "",
 
       Deck = CardData.CardType.KNIGHT,
 
-      BehaviorPattern = "f",
+      BehaviorPattern = "f;tap:buff(0,1,allSurrounding)",
 
       CardInstanceData = new CardInstanceData()
       {
@@ -132,14 +132,14 @@ public class CardController
         Attack = 1
       }
     });
-    RegisterCard(19, new CardData()
+    RegisterCard(34, new CardData()
     {
       TextTitle = "Prepare",
       TextDescription = "",
 
       Deck = CardData.CardType.KNIGHT,
 
-      BehaviorPattern = "spell,target:health(+3)",
+      BehaviorPattern = "spell;target:health(+3)",
 
       CardInstanceData = new CardInstanceData()
       {
@@ -151,6 +151,15 @@ public class CardController
     });
 
     //
+  }
+
+  //
+  public static int GetCardIdByName(string name)
+  {
+    foreach (var cardData in s_Singleton._cardData)
+      if (cardData.Value.TextTitle.ToLower() == name.ToLower())
+        return cardData.Value.CardId;
+    return 1;
   }
 
   //
@@ -218,6 +227,9 @@ public class CardController
     public string BehaviorPattern;
     public bool IsSpell { get { return BehaviorPattern.Contains("spell,"); } }
     public bool HasStartEffect { get { return BehaviorPattern.Contains("start:"); } }
+    public bool HasTapEffect { get { return BehaviorPattern.Contains("tap:"); } }
+    public bool HasBattleCrossEffect { get { return BehaviorPattern.Contains("battlecross:"); } }
+    public bool IsStationary { get { return BehaviorPattern.StartsWith("0"); } }
 
     //
     public CardInstanceData CardInstanceData;
@@ -234,6 +246,9 @@ public class CardController
 
     //
     public int Health, Attack;
+
+    //
+    public Dictionary<string, string> CardEffects;
 
   }
 

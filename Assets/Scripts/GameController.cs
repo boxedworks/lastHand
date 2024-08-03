@@ -61,6 +61,7 @@ public class GameController : MonoBehaviour
     {
       new ObjectController.CardObject(0, new Vector2Int(4, 7), CardController.GetCardData(1));
       new ObjectController.CardObject(0, new Vector2Int(2, 7), CardController.GetCardData(2));
+      new ObjectController.CardObject(0, new Vector2Int(1, 6), CardController.GetCardData(3));
       new ObjectController.CardObject(0, new Vector2Int(2, 6), CardController.GetCardData(6));
     }
 

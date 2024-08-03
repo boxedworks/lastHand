@@ -14,10 +14,10 @@ public class PlayerController : MonoBehaviour
   public HandController _Hand;
   public DeckController _Deck;
 
-  public Vector2Int _TileHovered { get { return _tilemapController._TileHovered; } }
+  public Vector2Int _TileHovered { get { return s_TilemapController._TileHovered; } }
 
   //
-  TilemapController _tilemapController;
+  public static TilemapController s_TilemapController;
   public class TilemapController
   {
 
@@ -75,26 +75,27 @@ public class PlayerController : MonoBehaviour
           if (Input.GetMouseButtonUp(0))
           {
 
-            var oldSelected = _TileSelected;
-            _TileSelected = tilePos;
+            SelectTile(tilePos);
 
-            if (oldSelected.x != -1 && oldSelected != _TileSelected)
-            {
-              var img = ObjectController.s_Singleton.GetTileMapImage(oldSelected);
-              img.color = Color.white;
-            }
-
-            {
-              var img = ObjectController.s_Singleton.GetTileMapImage(tilePos);
-              img.color = Color.green;
-            }
-
+            //
             var cardObject = ObjectController.GetCardObject(tilePos);
             if (cardObject != null)
             {
-              Debug.Log($"Selected cardObject: {cardObject._Id} {cardObject._CardData.TextTitle}");
 
-              DeckController.ShowCardObjectData(cardObject._CardData);
+              if (_ViewedObject != cardObject)
+              {
+                Debug.Log($"Selected cardObject: {cardObject._Id} {cardObject._CardData.TextTitle}");
+                _ViewedObject = cardObject;
+
+                DeckController.ShowCardObjectData(cardObject._CardData);
+              }
+              else
+              {
+                Debug.Log($"Tapped cardObject: {cardObject._Id} {cardObject._CardData.TextTitle}");
+
+                GameController.s_Singleton.StartCoroutine(cardObject.TrySmoothTap(null));
+              }
+
             }
           }
         }
@@ -111,6 +112,27 @@ public class PlayerController : MonoBehaviour
         }
       }
     }
+
+    //
+    public void SelectTile(Vector2Int tilePos)
+    {
+      var oldSelected = _TileSelected;
+      _TileSelected = tilePos;
+
+      if (oldSelected.x != -1 && oldSelected != _TileSelected)
+      {
+        var img = ObjectController.s_Singleton.GetTileMapImage(oldSelected);
+        img.color = Color.white;
+      }
+
+      {
+        var img = ObjectController.s_Singleton.GetTileMapImage(tilePos);
+        img.color = Color.green;
+      }
+    }
+
+    //
+    public ObjectController.CardObject _ViewedObject;
 
     //
     public void OnTurnEnd()
@@ -142,7 +164,7 @@ public class PlayerController : MonoBehaviour
 
     _Deck = new(this);
     _Hand = new(this);
-    _tilemapController = new();
+    s_TilemapController = new();
   }
 
   // Update is called once per frame
@@ -156,7 +178,7 @@ public class PlayerController : MonoBehaviour
       _Hand.Update();
 
       //
-      _tilemapController.Update();
+      s_TilemapController.Update();
 
       // Move camera
       {
