@@ -33,7 +33,7 @@ public class CardController
       TextTitle = "Bat",
       TextDescription = "",
 
-      Deck = CardData.CardType.BEAST,
+      Deck = CardData.DeckType.BEAST,
 
       BehaviorPattern = "f",
 
@@ -50,7 +50,7 @@ public class CardController
       TextTitle = "Goblin Scout",
       TextDescription = "",
 
-      Deck = CardData.CardType.GOBLIN,
+      Deck = CardData.DeckType.GOBLIN,
 
       BehaviorPattern = "f;tap:move;battlecross:deploy(self)",
 
@@ -67,7 +67,7 @@ public class CardController
       TextTitle = "Goblin Archer",
       TextDescription = "",
 
-      Deck = CardData.CardType.GOBLIN,
+      Deck = CardData.DeckType.GOBLIN,
 
       BehaviorPattern = "0;start:attack(randomEnemy)",
 
@@ -84,9 +84,9 @@ public class CardController
       TextTitle = "Goblin Warrior",
       TextDescription = "",
 
-      Deck = CardData.CardType.GOBLIN,
+      Deck = CardData.DeckType.GOBLIN,
 
-      BehaviorPattern = "f;tap:buff(1,1,allSurrounding:goblin)",
+      BehaviorPattern = "f;tap:buff(1,0,allSurrounding:ally)",
 
       CardInstanceData = new CardInstanceData()
       {
@@ -103,7 +103,7 @@ public class CardController
       TextTitle = "Footsoldier",
       TextDescription = "",
 
-      Deck = CardData.CardType.KNIGHT,
+      Deck = CardData.DeckType.KNIGHT,
 
       BehaviorPattern = "f;tap:move",
 
@@ -120,9 +120,26 @@ public class CardController
       TextTitle = "Guard",
       TextDescription = "",
 
-      Deck = CardData.CardType.KNIGHT,
+      Deck = CardData.DeckType.KNIGHT,
 
-      BehaviorPattern = "f;tap:buff(0,1,allSurrounding)",
+      BehaviorPattern = "f;tap:buff(0,1,allSurrounding:ally)",
+
+      CardInstanceData = new CardInstanceData()
+      {
+        Cost = 2,
+
+        Health = 3,
+        Attack = 1
+      }
+    });
+    RegisterCard(22, new CardData()
+    {
+      TextTitle = "Spearman",
+      TextDescription = "",
+
+      Deck = CardData.DeckType.KNIGHT,
+
+      BehaviorPattern = "f;range(1)",
 
       CardInstanceData = new CardInstanceData()
       {
@@ -137,7 +154,7 @@ public class CardController
       TextTitle = "Prepare",
       TextDescription = "",
 
-      Deck = CardData.CardType.KNIGHT,
+      Deck = CardData.DeckType.KNIGHT,
 
       BehaviorPattern = "spell;target:health(+3)",
 
@@ -160,6 +177,29 @@ public class CardController
       if (cardData.Value.TextTitle.ToLower() == name.ToLower())
         return cardData.Value.CardId;
     return 1;
+  }
+
+  //
+  public static void PlayCardAt(int ownerId, CardData cardData, Vector2Int atPos)
+  {
+
+
+    // Check spell
+    if (cardData.IsSpell)
+    {
+
+      // Spell effects
+
+    }
+
+    // Unit
+    else
+    {
+      new ObjectController.CardObject(ownerId, atPos, cardData);
+
+      // Summon effects
+    }
+
   }
 
   //
@@ -186,18 +226,64 @@ public class CardController
   {
     cardBase.name = $"{cardData.CardId}";
 
+    var cardBaseRoot = cardBase.transform.GetChild(0);
+    if (cardBaseRoot.name != "Border")
+      cardBaseRoot = cardBase.transform.GetChild(1);
+
     // Flavor text
-    cardBase.transform.GetChild(0).GetChild(1).GetChild(0).GetChild(1).GetComponent<TMPro.TextMeshProUGUI>().text = cardData.TextTitle;
-    cardBase.transform.GetChild(0).GetChild(1).GetChild(2).GetChild(1).GetComponent<TMPro.TextMeshProUGUI>().text = cardData.TextDescription;
+    cardBaseRoot.GetChild(1).GetChild(0).GetChild(1).GetComponent<TMPro.TextMeshProUGUI>().text = cardData.TextTitle;
+    cardBaseRoot.GetChild(1).GetChild(2).GetChild(1).GetComponent<TMPro.TextMeshProUGUI>().text = cardData.BehaviorPattern;//cardData.TextDescription;
 
     // Img
-    cardBase.transform.GetChild(0).GetChild(1).GetChild(1).GetChild(0).GetChild(0).GetComponent<Image>().sprite = Resources.Load<Sprite>($"CardImages/{cardData.CardId}");
+    cardBaseRoot.GetChild(1).GetChild(1).GetChild(0).GetChild(0).GetComponent<Image>().sprite = Resources.Load<Sprite>($"CardImages/{cardData.CardId}");
 
     // Cost
-    cardBase.transform.GetChild(0).GetChild(2).GetChild(2).GetComponent<TMPro.TextMeshProUGUI>().text = $"{cardData.CardInstanceData.Cost}";
+    cardBaseRoot.GetChild(2).GetChild(2).GetComponent<TMPro.TextMeshProUGUI>().text = $"{cardData.CardInstanceData.Cost}";
 
     // Attack / health
-    cardBase.transform.GetChild(0).GetChild(3).GetChild(2).GetComponent<TMPro.TextMeshProUGUI>().text = $"{cardData.CardInstanceData.Attack} / {cardData.CardInstanceData.Health}";
+    cardBaseRoot.GetChild(3).GetChild(2).GetComponent<TMPro.TextMeshProUGUI>().text = $"{cardData.CardInstanceData.Attack} / {cardData.CardInstanceData.Health}";
+
+    // Mana color
+    cardBaseRoot.GetChild(2).GetChild(1).GetComponent<Image>().color = Color.magenta;
+
+    // Card color
+    var cardColor = GetDeckColor(cardData.Deck);
+    cardBaseRoot.GetChild(0).GetComponent<Image>().color = cardColor;
+    cardBaseRoot.GetChild(1).GetChild(0).GetChild(0).GetComponent<Image>().color = cardColor;
+    cardBaseRoot.GetChild(1).GetChild(1).GetChild(0).GetComponent<Image>().color = cardColor;
+    cardBaseRoot.GetChild(1).GetChild(2).GetComponent<Image>().color = cardColor;
+    cardBaseRoot.GetChild(3).GetChild(1).GetComponent<Image>().color = cardColor;
+  }
+
+  //
+  public static int GetCardManaCost(int ownerId, CardData cardData, Vector2Int atPos)
+  {
+
+    var baseMana = cardData.CardInstanceData.Cost;
+
+    // Spell cost
+    if (cardData.IsSpell)
+      return baseMana;
+
+    // Unit cost + terrain
+    var tileManaMod = ownerId == 0 ?
+      ObjectController.s_TileMapSize.y - 1 - atPos.y :
+      atPos.y;
+
+    return baseMana + tileManaMod;
+  }
+
+  //
+  public static Color GetDeckColor(CardData.DeckType deckType)
+  {
+    return deckType switch
+    {
+      CardData.DeckType.KNIGHT => new Color(0.42f, 0.42f, 0.42f),
+      CardData.DeckType.GOBLIN => new Color(0.09f, 0.48f, 0.09f),
+      CardData.DeckType.BEAST => new Color(0.31f, 0.2f, 0.2f),
+
+      _ => Color.black,
+    };
   }
 
   //
@@ -212,7 +298,7 @@ public class CardController
     public string TextTitle, TextDescription;
 
     //
-    public enum CardType
+    public enum DeckType
     {
       NOT_SET,
 
@@ -220,12 +306,12 @@ public class CardController
       GOBLIN,
       KNIGHT,
     }
-    public CardType Deck;
+    public DeckType Deck;
 
     /// Card behaviors
     // "m1b1:move-f"
     public string BehaviorPattern;
-    public bool IsSpell { get { return BehaviorPattern.Contains("spell,"); } }
+    public bool IsSpell { get { return BehaviorPattern.Contains("spell;"); } }
     public bool HasStartEffect { get { return BehaviorPattern.Contains("start:"); } }
     public bool HasTapEffect { get { return BehaviorPattern.Contains("tap:"); } }
     public bool HasBattleCrossEffect { get { return BehaviorPattern.Contains("battlecross:"); } }
@@ -233,6 +319,30 @@ public class CardController
 
     //
     public CardInstanceData CardInstanceData;
+
+    //
+    public static CardData Clone(CardData cardData)
+    {
+      return new()
+      {
+        CardId = cardData.CardId,
+
+        TextTitle = cardData.TextTitle,
+        TextDescription = cardData.TextDescription,
+
+        Deck = cardData.Deck,
+
+        BehaviorPattern = cardData.BehaviorPattern,
+
+        CardInstanceData = new()
+        {
+          Health = cardData.CardInstanceData.Health,
+          Attack = cardData.CardInstanceData.Attack,
+
+          Cost = cardData.CardInstanceData.Cost
+        }
+      };
+    }
   }
   Dictionary<int, CardData> _cardData;
 
@@ -268,7 +378,7 @@ public class CardController
   public struct CardHandData
   {
     public int Id;
-    public CardData Data { get { return CardController.GetCardData(Id); } }
+    public CardData Data { get { return GetCardData(Id); } }
 
     public GameObject GameObject;
   }

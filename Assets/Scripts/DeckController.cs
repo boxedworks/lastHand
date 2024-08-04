@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class DeckController
 {
@@ -9,7 +10,7 @@ public class DeckController
   PlayerController _playerController;
 
   public RectTransform _DeckIcon, _DiscardIcon, _DeckViewer, _CardViewer;
-  TMPro.TextMeshProUGUI _textDeckCount, _textDiscardCount;
+  TMPro.TextMeshProUGUI _textDeckCount, _textDiscardCount, _textManaDisplay;
 
   RectTransform _cardFx_deckSelect, _cardFx_discardSelect, _cardFx_deckViewerSelect, _cardFx_deckViewerBg, _cardFx_cardViewerBg;
 
@@ -29,12 +30,19 @@ public class DeckController
     _discardingCards = new();
     _reshufflingCards = new();
 
+
+    var deckColor = CardController.GetDeckColor(CardController.CardData.DeckType.KNIGHT);
+
     _DeckIcon = GameObject.Find("PlayerDeck").transform.Find("CardBase") as RectTransform;
+    _DeckIcon.GetChild(0).GetChild(0).GetComponent<Image>().color = deckColor;
+    _DeckIcon.GetChild(0).GetChild(1).GetChild(1).GetComponent<Image>().color = deckColor;
     _cardFx_deckSelect = _DeckIcon.parent.GetChild(0).GetChild(0) as RectTransform;
     _textDeckCount = _DeckIcon.GetChild(0).GetChild(1).GetChild(2).GetComponent<TMPro.TextMeshProUGUI>();
     _textDeckCount.text = $"{_cardsDeck.Count}";
 
     _DiscardIcon = GameObject.Find("PlayerDiscard").transform.Find("CardBase") as RectTransform;
+    _DiscardIcon.GetChild(0).GetChild(0).GetComponent<Image>().color = deckColor;
+    _DiscardIcon.GetChild(0).GetChild(1).GetChild(1).GetComponent<Image>().color = deckColor;
     _cardFx_discardSelect = _DiscardIcon.parent.GetChild(0).GetChild(0) as RectTransform;
     _textDiscardCount = _DiscardIcon.GetChild(0).GetChild(1).GetChild(2).GetComponent<TMPro.TextMeshProUGUI>();
     _textDiscardCount.text = $"{_cardsDiscard.Count}";
@@ -46,6 +54,8 @@ public class DeckController
     _CardViewer = GameObject.Find("CardViewer").transform as RectTransform;
     _cardFx_cardViewerBg = _CardViewer.GetChild(0).GetChild(0) as RectTransform;
 
+    _textManaDisplay = GameObject.Find("ManaDisplay").transform.GetChild(0).GetChild(0).GetChild(0).GetComponent<TMPro.TextMeshProUGUI>();
+
     // Create simple deck
     for (var i = 0; i < 5; i++)
       _cardsDeck.Add(new CardController.CardHandData()
@@ -56,6 +66,11 @@ public class DeckController
       _cardsDeck.Add(new CardController.CardHandData()
       {
         Id = CardController.GetCardIdByName("guard")
+      });
+    for (var i = 0; i < 1; i++)
+      _cardsDeck.Add(new CardController.CardHandData()
+      {
+        Id = CardController.GetCardIdByName("spearman")
       });
     /*for (var i = 0; i < 1; i++)
       _cardsDeck.Add(new CardController.CardHandData()
@@ -309,12 +324,17 @@ public class DeckController
   }
 
   //
-  public static void ShowCardObjectData(CardController.CardData cardData)
+  public static void ShowCardObjectData(int cardIndex, CardController.CardData cardData)
   {
-    var cardBase = GameObject.Find("CardObjectDisplay").transform.GetChild(0).gameObject;
+    var cardBase = GameObject.Find("CardObjectDisplay").transform.GetChild(cardIndex).gameObject;
 
     CardController.SetCardBaseData(cardBase, cardData);
     cardBase.gameObject.SetActive(true);
+  }
+  public static void HideCardObjectData(int cardIndex)
+  {
+    var cardBase = GameObject.Find("CardObjectDisplay").transform.GetChild(cardIndex).gameObject;
+    cardBase.gameObject.SetActive(false);
   }
 
   //
@@ -405,5 +425,11 @@ public class DeckController
 
     var cardBase = _CardViewer.GetChild(1).GetChild(0);
     cardBase.transform.parent.gameObject.SetActive(false);
+  }
+
+  //
+  public void UpdateManaDisplay()
+  {
+    _textManaDisplay.text = $"{_playerController._Mana}";
   }
 }

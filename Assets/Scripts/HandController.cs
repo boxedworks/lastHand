@@ -8,6 +8,7 @@ public class HandController
 
   //
   PlayerController _playerController;
+  public bool _HasSelectedCard { get { return _cardSelected.HasCard; } }
 
   // Card FX
   static Transform _cardFx_Container;
@@ -159,7 +160,26 @@ public class HandController
   //
   bool canPlayCard()
   {
+
+    // Check somthing happening
+    if (ObjectController._IsActionsHappening)
+      return false;
+
+    // Check on correct side of battlefield
+    var battlefieldYRange = _playerController._OwnerId == 0 ?
+      new Vector2Int(ObjectController.s_TileMapSize.y / 2, ObjectController.s_TileMapSize.y - 1) :
+      new Vector2Int(0, ObjectController.s_TileMapSize.y / 2 - 1);
+    if (_playerController._TileHovered.y < battlefieldYRange.x || _playerController._TileHovered.y > battlefieldYRange.y)
+      return false;
+
+    //
     var cardObject = ObjectController.GetCardObject(_playerController._TileHovered);
+
+    // Check cost
+    var manaAvailable = _playerController._Mana;
+    var cardCost = CardController.GetCardManaCost(_playerController._OwnerId, _cardSelected.CardData, _playerController._TileHovered);
+    if (manaAvailable < cardCost)
+      return false;
 
     // Check spell
     var isSpell = _cardSelected.CardData.IsSpell;
@@ -201,22 +221,12 @@ public class HandController
 
     _cardFx_Selected.gameObject.SetActive(false);
 
-    // Check spell
-    if (cardData.IsSpell)
-    {
+    //
+    CardController.PlayCardAt(_playerController._OwnerId, cardData, atPos);
+    UpdateHandManaCosts(Vector2Int.zero);
 
-      // Spell effects
-
-    }
-
-
-    // Unit
-    else
-    {
-      new ObjectController.CardObject(_playerController._OwnerId, atPos, cardData);
-
-      // Summon effects
-    }
+    //
+    _playerController.OnCardPlayed(cardData, atPos);
   }
 
   // Add a card to the player's hand by Id
@@ -244,6 +254,21 @@ public class HandController
     _cards.RemoveAt(handIndex);
 
     _playerController._Deck.DiscardCard(card);
+  }
+
+  //
+  public void UpdateHandManaCosts(Vector2Int atPos)
+  {
+
+    foreach (var card in _cards)
+    {
+      var cardDataClone = CardController.CardData.Clone(card.Data);
+      cardDataClone.CardInstanceData.Cost = _playerController._Hand._cardSelected.HasCard ?
+        CardController.GetCardManaCost(_playerController._OwnerId, cardDataClone, atPos) :
+        cardDataClone.CardInstanceData.Cost;
+      CardController.SetCardBaseData(card.GameObject, cardDataClone);
+    }
+
   }
 
 }

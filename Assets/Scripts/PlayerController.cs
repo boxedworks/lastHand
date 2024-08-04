@@ -14,18 +14,53 @@ public class PlayerController : MonoBehaviour
   public HandController _Hand;
   public DeckController _Deck;
 
-  public Vector2Int _TileHovered { get { return s_TilemapController._TileHovered; } }
+  //
+  int _mana;
+  public int _Mana { get { return _mana; } }
 
   //
-  public static TilemapController s_TilemapController;
+  public Vector2Int _TileHovered { get { return TilemapController.s_Singleton._TileHovered; } }
+
+  //
   public class TilemapController
   {
 
+    public static TilemapController s_Singleton;
+
     public Vector2Int _TileHovered, _TileSelected;
 
-    public TilemapController()
+    PlayerController _playerController;
+
+    public TilemapController(PlayerController playerController)
     {
+      s_Singleton = this;
+
+      _playerController = playerController;
+
       _TileHovered = _TileSelected = new Vector2Int(-1, -1);
+
+      _ViewedObjects = new ObjectController.CardObject[2];
+
+      // Create tilemap UI
+      var uiElemntsBaseRef = GameObject.Find("TileMapUI").transform.GetChild(0).GetChild(0);
+      var uiElementsBase = GameObject.Instantiate(uiElemntsBaseRef.gameObject, uiElemntsBaseRef.parent).transform;
+      uiElementsBase.gameObject.SetActive(true);
+      for (var x = 1; x < ObjectController.s_TileMapSize.x; x++)
+      {
+        var uiTile = GameObject.Instantiate(uiElementsBase.GetChild(0).gameObject, uiElementsBase).transform;
+      }
+      for (var y = 1; y < ObjectController.s_TileMapSize.y; y++)
+      {
+        var uiElementsRow = GameObject.Instantiate(uiElementsBase.gameObject, uiElementsBase.parent).transform;
+      }
+
+      //
+      for (var y = 0; y < ObjectController.s_TileMapSize.y; y++)
+        for (var x = 0; x < ObjectController.s_TileMapSize.x; x++)
+        {
+          var tilePos = new Vector2Int(x, y);
+          SetTileBaseColor(tilePos);
+        }
     }
 
     //
@@ -58,21 +93,31 @@ public class PlayerController : MonoBehaviour
 
         if (
           hitpoint.x > xMin && hitpoint.x < xMax && hitpoint.y > yMin && hitpoint.y < yMax &&
-          tilePos.x > -1 && tilePos.x < ObjectController.s_TileMapSize.x && tilePos.y > -1 && tilePos.y < ObjectController.s_TileMapSize.y
+          ObjectController.IsPosWithinTilemap(tilePos)
           )
         {
 
           // New hover
+          var lastHover = _TileHovered;
           _TileHovered = tilePos;
 
+          // Check change
+          if (lastHover != _TileHovered)
+          {
+
+            // Update hand costs
+            _playerController._Hand.UpdateHandManaCosts(_TileHovered);
+          }
+
+          //
           if (_TileHovered != _TileSelected)
           {
-            var img = ObjectController.s_Singleton.GetTileMapImage(tilePos);
+            var img = ObjectController.GetTileMapImage(tilePos);
             img.color = Color.gray;
           }
 
           // Selection
-          if (Input.GetMouseButtonUp(0))
+          if (!_playerController._Hand._HasSelectedCard && Input.GetMouseButtonUp(0))
           {
 
             SelectTile(tilePos);
@@ -82,18 +127,16 @@ public class PlayerController : MonoBehaviour
             if (cardObject != null)
             {
 
-              if (_ViewedObject != cardObject)
+              if (_ViewedObjects[0] != cardObject)
               {
-                Debug.Log($"Selected cardObject: {cardObject._Id} {cardObject._CardData.TextTitle}");
-                _ViewedObject = cardObject;
-
-                DeckController.ShowCardObjectData(cardObject._CardData);
+                SetViewedObject(0, cardObject);
               }
+
+              // Tap
               else
               {
-                Debug.Log($"Tapped cardObject: {cardObject._Id} {cardObject._CardData.TextTitle}");
-
-                GameController.s_Singleton.StartCoroutine(cardObject.TrySmoothTap(null));
+                if (cardObject._OwnerId == _playerController._OwnerId)
+                  ObjectController.TryTap(cardObject);
               }
 
             }
@@ -107,8 +150,7 @@ public class PlayerController : MonoBehaviour
         // Old hover
         if (oldHover.x != -1 && oldHover != _TileHovered && oldHover != _TileSelected)
         {
-          var img = ObjectController.s_Singleton.GetTileMapImage(oldHover);
-          img.color = Color.white;
+          SetTileBaseColor(oldHover);
         }
       }
     }
@@ -121,18 +163,105 @@ public class PlayerController : MonoBehaviour
 
       if (oldSelected.x != -1 && oldSelected != _TileSelected)
       {
-        var img = ObjectController.s_Singleton.GetTileMapImage(oldSelected);
-        img.color = Color.white;
+        SetTileBaseColor(oldSelected);
       }
 
       {
-        var img = ObjectController.s_Singleton.GetTileMapImage(tilePos);
+        var img = ObjectController.GetTileMapImage(tilePos);
         img.color = Color.green;
       }
     }
+    public void ClearSelectedTile()
+    {
+      SetTileBaseColor(_TileSelected);
+    }
 
     //
-    public ObjectController.CardObject _ViewedObject;
+    Vector2Int _attackIndicator;
+    public void SetAttackIndicator(Vector2Int tilePos)
+    {
+      var oldSelected = _attackIndicator;
+      _attackIndicator = tilePos;
+
+      if (oldSelected.x != -1 && oldSelected != _TileSelected)
+      {
+        SetTileBaseColor(oldSelected);
+      }
+
+      {
+        var img = ObjectController.GetTileMapImage(tilePos);
+        img.color = Color.red;
+      }
+    }
+    public void ClearAttackTile()
+    {
+      SetTileBaseColor(_attackIndicator);
+    }
+
+    //
+    Vector2Int _buffIndicator;
+    public void SetBuffIndicator(Vector2Int tilePos)
+    {
+      var oldSelected = _buffIndicator;
+      _buffIndicator = tilePos;
+
+      if (oldSelected.x != -1 && oldSelected != _TileSelected)
+      {
+        SetTileBaseColor(oldSelected);
+      }
+
+      {
+        var img = ObjectController.GetTileMapImage(tilePos);
+        img.color = Color.yellow;
+      }
+    }
+    public void ClearBuffTile()
+    {
+      SetTileBaseColor(_buffIndicator);
+    }
+
+    //
+    public void SetTileBaseColor(Vector2Int tilePos)
+    {
+      var img = ObjectController.GetTileMapImage(tilePos);
+      img.color = ObjectController.IsDeployTile(tilePos) ? Color.white * 0.75f : Color.white;
+    }
+
+    //
+    public ObjectController.CardObject[] _ViewedObjects;
+    public static void SetViewedObject(int index, ObjectController.CardObject cardObject)
+    {
+      s_Singleton._ViewedObjects[index] = cardObject;
+      if (s_Singleton._ViewedObjects[index] != null)
+      {
+        DeckController.ShowCardObjectData(index, cardObject._CardData);
+        if (index == 0)
+          s_Singleton.SelectTile(cardObject._Position);
+      }
+    }
+    public static void UpdateViewedObject(int index)
+    {
+      var cardObject = s_Singleton._ViewedObjects[index];
+      if (cardObject != null)
+      {
+        DeckController.ShowCardObjectData(index, cardObject._CardData);
+        if (index == 0)
+          s_Singleton.SelectTile(cardObject._Position);
+      }
+    }
+    public static void HideViewedObject(int index)
+    {
+      s_Singleton._ViewedObjects[index] = null;
+      DeckController.HideCardObjectData(index);
+    }
+
+    public static void UpdateViewedObjects()
+    {
+      for (var i = 0; i < s_Singleton._ViewedObjects.Length; i++)
+      {
+        UpdateViewedObject(i);
+      }
+    }
 
     //
     public void OnTurnEnd()
@@ -160,11 +289,15 @@ public class PlayerController : MonoBehaviour
     if (s_Players == null) s_Players = new();
     s_Players.Add(this);
 
-    _OwnerId = 1;
+    _OwnerId = s_Players.Count;
 
     _Deck = new(this);
     _Hand = new(this);
-    s_TilemapController = new();
+    new TilemapController(this);
+
+    //
+    _mana = 4;
+    _Deck.UpdateManaDisplay();
   }
 
   // Update is called once per frame
@@ -178,7 +311,7 @@ public class PlayerController : MonoBehaviour
       _Hand.Update();
 
       //
-      s_TilemapController.Update();
+      TilemapController.s_Singleton.Update();
 
       // Move camera
       {
@@ -217,8 +350,18 @@ public class PlayerController : MonoBehaviour
   Vector3 _middleMouseDownPos, _cameraSavePos;
 
   //
+  public void OnCardPlayed(CardController.CardData cardData, Vector2Int atPos)
+  {
+    _mana -= CardController.GetCardManaCost(_OwnerId, cardData, atPos);
+    _Deck.UpdateManaDisplay();
+  }
+
+  //
   public void OnTurnEnd()
   {
     GameController.s_Singleton.OnTurnsEnded();
+
+    _mana = 4;
+    _Deck.UpdateManaDisplay();
   }
 }
