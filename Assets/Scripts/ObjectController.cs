@@ -30,7 +30,7 @@ public class ObjectController
     _objectsTileMap = new();
     _objectsOwner = new();
 
-    _tileMapSize = new Vector2Int(6, 8);
+    _tileMapSize = new Vector2Int(6, 6);
 
     //
     _tileMapPositionsAll = new();
@@ -75,10 +75,7 @@ public class ObjectController
             var nextObject = _turnObjects.Dequeue();
             if (nextObject != null && !nextObject._Destroyed)
             {
-              _gameCoroutine = GameController.s_Singleton.StartCoroutine(nextObject.TrySmoothTap(() =>
-              {
-                _gameCoroutine = null;
-              }));
+              TryTap(nextObject);
             }
           }
         }
@@ -94,6 +91,7 @@ public class ObjectController
 
           // Get all tap monsters
           var cardObjects = GetCardObjects(0).Where(x => x._CardData.HasTapEffect).ToList();
+          cardObjects.Shuffle();
           _turnObjects = new Queue<CardObject>(cardObjects);
         }
         else
@@ -127,6 +125,17 @@ public class ObjectController
 
     Debug.Log($"Tapped cardObject: {cardObject._ObjectId} {cardObject._CardData.TextTitle}");
     s_Singleton._gameCoroutine = GameController.s_Singleton.StartCoroutine(cardObject.TrySmoothTap(() =>
+    {
+      s_Singleton._gameCoroutine = null;
+    }));
+  }
+  public static void TrySpell(CardObject cardObject, CardController.CardData spellData)
+  {
+
+    if (s_Singleton._gameCoroutine != null) return;
+
+    Debug.Log($"Spell [{spellData.TextTitle}] on cardObject: {cardObject._ObjectId} {cardObject._CardData.TextTitle}");
+    s_Singleton._gameCoroutine = GameController.s_Singleton.StartCoroutine(cardObject.TrySmoothSpell(spellData, () =>
     {
       s_Singleton._gameCoroutine = null;
     }));
@@ -303,7 +312,7 @@ public class ObjectController
       _CardData = CardController.CardData.Clone(cardData);
 
       // Configure model
-      _gameObject = GameObject.Instantiate(Resources.Load("CardObjects/Placeholder")) as GameObject;
+      _gameObject = GameObject.Instantiate(Resources.Load(!_CardData.IsObject ? "CardObjects/Placeholder_unit" : "CardObjects/Placeholder_object")) as GameObject;
       SetTokenColor();
       _gameObject.transform.GetChild(0).GetChild(0).GetChild(0).GetComponent<SpriteRenderer>().sprite = Resources.Load<Sprite>($"CardImages/{cardData.CardId}");
       _textStatus = _gameObject.transform.GetChild(1).GetComponent<TMPro.TextMeshPro>();
@@ -318,6 +327,11 @@ public class ObjectController
     //
     public void UpdateStatus()
     {
+      if (_CardData.IsObject)
+      {
+        _textStatus.gameObject.SetActive(false);
+        return;
+      }
       _textStatus.text = $"{_CardData.CardInstanceData.Attack}/{_CardData.CardInstanceData.Health}";
     }
 
@@ -340,16 +354,20 @@ public class ObjectController
       GameObject.Destroy(_gameObject);
       _CardData = null;
     }
+    public void Hide()
+    {
+      _gameObject.SetActive(false);
+    }
 
     //
     public void SetPosition(Vector2Int atTile)
     {
 
       //
-      if (atTile == _Position) return;
+      //if (atTile == _Position) return;
 
       // Check can move per offset
-      if (!CanSetPosition(atTile)) return;
+      //if (!CanSetPosition(atTile)) return;
 
       // Move per offset
       foreach (var offset in _positionLocalOffsets)
@@ -401,8 +419,17 @@ public class ObjectController
 
       var startTilePos = _Position;
       var endTilePos = startTilePos + moveAmount;
+      if (!IsPosWithinTilemap(endTilePos))
+        return false;
 
-      return CanSetPosition(endTilePos);
+      var otherObject = GetCardObject(endTilePos);
+      if (otherObject == null)
+        return true;
+
+      else if (otherObject._CardData.IsObject)
+        return true;
+
+      return false;
     }
     //
     public bool CanJump()
@@ -419,19 +446,36 @@ public class ObjectController
 
       return !CanSetPosition(middleTilePos) && CanSetPosition(endTilePos);
     }
-    public bool CanAttack()
+    public bool CanAttack(bool isMoving)
+    {
+      var attackPositions = new List<Vector2Int>();
+      if (!isMoving)
+        attackPositions.Add(_Position + GetMovementDirection());
+
+      // Extra attack
+      if (_CardData.HasExtraRange)
+        attackPositions.Add(_Position + GetMovementDirection() * 2);
+
+      //
+      foreach (var attackPos in attackPositions)
+      {
+        var other = GetCardObject(attackPos);
+        if (other != null && IsEnemy(other))
+          return true;
+      }
+
+      return false;
+    }
+    public bool CanAttack(Vector2Int attackPos)
     {
       // Check stationary
       if (_CardData.IsStationary) return false;
 
-      // Normal 'melee' attack
-      var moveAmount = GetMovementDirection();
+      var other = GetCardObject(attackPos);
+      if (other != null && IsEnemy(other))
+        return true;
 
-      var startTilePos = _Position;
-      var endTilePos = startTilePos + moveAmount;
-
-      var other = GetCardObject(endTilePos);
-      return other != null && IsEnemy(other);
+      return false;
     }
 
     //
@@ -442,8 +486,14 @@ public class ObjectController
       if (_CardData.HasStartEffect)
         yield return ProcessTriggerEffects("start");
 
-      // Movement
-      yield return ProcessTriggerEffect("move");
+      // Unit movement
+      if (!_CardData.IsObject)
+        yield return ProcessEffect(new EffectData()
+        {
+          EffectType = "move"
+        });
+
+      // Object
 
       //yield return new WaitForSeconds(0.5f);
 
@@ -476,6 +526,21 @@ public class ObjectController
     }
 
     //
+    public IEnumerator TrySmoothSpell(CardController.CardData spellData, Action onComplete)
+    {
+
+      yield return ProcessEffect(new EffectData()
+      {
+        EffectType = spellData.BehaviorPattern[6..],
+
+        _forceViewedCardData0 = spellData
+      });
+
+      //
+      onComplete?.Invoke();
+    }
+
+    //
     IEnumerator ProcessTriggerEffects(string tagName)
     {
       foreach (var effect in _CardData.BehaviorPattern.Split(';'))
@@ -484,19 +549,27 @@ public class ObjectController
         if (effect.StartsWith($"{tagName}:"))
         {
           var effectDetails = effect[(tagName.Length + 1)..];
-          yield return ProcessTriggerEffect(effectDetails);
+          yield return ProcessEffect(new EffectData()
+          {
+            EffectType = effectDetails
+          });
         }
 
       }
     }
-    IEnumerator ProcessTriggerEffect(string effect)
-    {
-      yield return ProcessEffect(effect);
-    }
 
     //
-    IEnumerator ProcessEffect(string effectType)
+    class EffectData
     {
+      public string EffectType;
+
+      public CardObject _forceViewedObject0;
+      public CardController.CardData _forceViewedCardData0;
+    }
+    IEnumerator ProcessEffect(EffectData effectData)
+    {
+
+      var effectType = effectData.EffectType;
 
       Debug.Log($"processing effect {effectType}");
       bool effectFired = false;
@@ -507,11 +580,21 @@ public class ObjectController
         {
           effectFired = true;
 
-          // UI
-          if (PlayerController.TilemapController.s_Singleton._ViewedObjects[0] != this)
+          if (effectData._forceViewedCardData0 != null)
           {
-            PlayerController.TilemapController.SetViewedObject(0, this);
+            PlayerController.TilemapController.ForceViewedCardData(effectData._forceViewedCardData0);
             yield return new WaitForSeconds(0.5f);
+          }
+          else
+          {
+
+            // UI
+            var viewObject = effectData._forceViewedObject0 == null ? this : effectData._forceViewedObject0;
+            if (PlayerController.TilemapController.s_Singleton._ViewedObjects[0] != viewObject)
+            {
+              PlayerController.TilemapController.SetViewedObject(0, viewObject);
+              yield return new WaitForSeconds(0.5f);
+            }
           }
         }
       }
@@ -534,6 +617,7 @@ public class ObjectController
 
           PlayerController.TilemapController.SetViewedObject(1, target);
           PlayerController.TilemapController.s_Singleton.SetBuffIndicator(target._Position);
+          Debug.Log(target._Position);
           yield return new WaitForSeconds(0.75f);
 
           target._CardData.CardInstanceData.Attack += amountAttack;
@@ -596,18 +680,51 @@ public class ObjectController
       // Check movement
       else if (effectType.StartsWith("move"))
       {
+
+        //
+        IEnumerator CheckAttack(bool isMoving)
+        {
+
+          var attackPositions = new List<Vector2Int>();
+          if (!isMoving)
+            attackPositions.Add(_Position + GetMovementDirection());
+
+          // Extra attack
+          if (_CardData.HasExtraRange)
+            attackPositions.Add(_Position + GetMovementDirection() * 2);
+
+          //
+          foreach (var attackPos in attackPositions)
+          {
+            if (CanAttack(attackPos))
+              yield return ProcessEffect(new EffectData()
+              {
+                EffectType = $"attack({attackPos.x},{attackPos.y})"
+              });
+          }
+        }
+
         // Check if has movement
         if (CanMove())
         {
           yield return EffectFired();
+
+          // Check extra range attack
+          yield return CheckAttack(true);
+
+          //
           yield return SmoothMove(false);
         }
+
         // Else, check in front; check attack
-        else if (CanAttack())
+        else if (CanAttack(false))
         {
           yield return EffectFired();
-          yield return ProcessTriggerEffect("attack(front)");
+          yield return CheckAttack(false);
         }
+
+// jump not working with object
+
         // Check jump ally
         else if (CanJump())
         {
@@ -635,30 +752,34 @@ public class ObjectController
 
       var targetList = new List<CardObject>();
       var targetModifier = "";
+      void AddTarget(CardObject cardObject)
+      {
+        if (cardObject == null || cardObject._Destroyed || cardObject._CardData.IsObject) return;
+        targetList.Add(cardObject);
+      }
 
       // Check self
       if (targetString == "self")
       {
-        targetList.Add(this);
+        AddTarget(this);
       }
 
       // Check dirs
-      else if (targetString == "front")
+      else if (targetString.StartsWith("front"))
       {
-        var frontObject = GetCardObject(_Position + new Vector2Int(0, _OwnerId == 0 ? -1 : 1));
-        if (frontObject != null)
-          targetList.Add(frontObject);
+        var frontMod = targetString[5..];
+        var frontModInt = 0;
+        if (frontMod.Length > 0)
+          frontModInt = int.Parse(frontMod);
+
+        var frontObject = GetCardObject(_Position + new Vector2Int(0, _OwnerId == 0 ? -1 : 1) * frontModInt);
+        AddTarget(frontObject);
       }
 
       // Check surrounding units
       else if (targetString.StartsWith("allSurrounding"))
       {
         // Get list of all surrounding entities
-        void AddTarget(CardObject cardObject)
-        {
-          if (cardObject == null || cardObject._Destroyed) return;
-          targetList.Add(cardObject);
-        }
         AddTarget(GetCardObject(new Vector2Int(_Position.x + 1, _Position.y)));
         AddTarget(GetCardObject(new Vector2Int(_Position.x - 1, _Position.y)));
         AddTarget(GetCardObject(new Vector2Int(_Position.x, _Position.y + 1)));
@@ -674,9 +795,23 @@ public class ObjectController
       // Gather a random enemy
       else if (targetString == "randomEnemy")
       {
-        var enemyTargets = s_Singleton._objectsAll.Where(x => !OwnerIdIsAlly(x._OwnerId)).ToList();
+        var enemyTargets = s_Singleton._objectsAll.Where(x => !x._CardData.IsObject && !OwnerIdIsAlly(x._OwnerId)).ToList();
         if (enemyTargets.Count > 0)
-          targetList.Add(enemyTargets[UnityEngine.Random.Range(0, enemyTargets.Count)]);
+          AddTarget(enemyTargets[UnityEngine.Random.Range(0, enemyTargets.Count)]);
+      }
+
+      // Check specific coords
+      else
+      {
+        var testInt = 0;
+        if (int.TryParse(targetString[0] + "", out testInt))
+        {
+          var coordsSplit = targetString.Split(',');
+          var tilePos = new Vector2Int(int.Parse(coordsSplit[0].Trim()), int.Parse(coordsSplit[1].Trim()));
+
+          var enemyTarget = GetCardObject(tilePos);
+          AddTarget(enemyTarget);
+        }
       }
 
       // Filter by type
@@ -729,6 +864,7 @@ public class ObjectController
 
       var startTilePos = _Position;
       var endTilePos = startTilePos + moveAmount * (isJump ? 2 : 1);
+      var otherObject = GetCardObject(endTilePos);
 
       var startGameObjectPos2 = PlayerController.TilemapController.GetTileGameObjectPosition(startTilePos);
       var endGameObjectPos2 = PlayerController.TilemapController.GetTileGameObjectPosition(endTilePos);
@@ -757,6 +893,25 @@ public class ObjectController
         {
           yield return ProcessTriggerEffects("battlecross");
         }
+      }
+
+      // Check object pickup
+      if ((otherObject?._CardData.IsObject) ?? false)
+      {
+
+        // Fire object effects
+        var objectBehavior = otherObject._CardData.BehaviorPattern[7..];
+        otherObject.Hide();
+        yield return ProcessEffect(new EffectData()
+        {
+          EffectType = objectBehavior,
+
+          _forceViewedObject0 = otherObject
+        });
+
+        // Remove object
+        otherObject.Destroy();
+        SetPosition(endTilePos); // Reset position
       }
     }
 
@@ -791,26 +946,9 @@ public class ObjectController
       onComplete?.Invoke();
     }
 
-    //
-    public IEnumerator SmoothMeleeAttack(Action onComplete)
+    /*/
+    public IEnumerator SmoothMeleeAttack()
     {
-
-      //
-      var moveAmount = GetMovementDirection();
-
-      var startTilePos = _Position;
-      var endTilePos = startTilePos + moveAmount;
-
-      var startPos2 = PlayerController.TilemapController.GetTileGameObjectPosition(startTilePos);
-      var endPos2 = PlayerController.TilemapController.GetTileGameObjectPosition(endTilePos);
-
-      var startPos = new Vector3(startPos2.x, 0f, startPos2.y);
-      var endPos = new Vector3(endPos2.x, 0f, endPos2.y);
-
-      // Gather other
-      var other = GetCardObject(endTilePos);
-      PlayerController.TilemapController.SetViewedObject(1, other);
-      yield return new WaitForSeconds(0.5f);
 
       //
       var t = 1f;
@@ -836,15 +974,8 @@ public class ObjectController
           other.UpdateStatus();
         }
       }
-      //_gameObject.transform.position = endPos;
-      //SetPosition(endTilePos);
 
-      //yield return CheckStatus(this);
-      yield return SmoothCheckStatus(other);
-
-      //
-      onComplete?.Invoke();
-    }
+    }*/
 
     // Resolve altercation
     IEnumerator SmoothCheckStatus(CardObject cardObject)

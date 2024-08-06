@@ -117,7 +117,7 @@ public class PlayerController : MonoBehaviour
           }
 
           // Selection
-          if (!_playerController._Hand._HasSelectedCard && Input.GetMouseButtonUp(0))
+          if (!_playerController._Hand._HasSelectedCard && !ObjectController._IsActionsHappening && Input.GetMouseButtonUp(0))
           {
 
             SelectTile(tilePos);
@@ -171,9 +171,14 @@ public class PlayerController : MonoBehaviour
         img.color = Color.green;
       }
     }
+
     public void ClearSelectedTile()
     {
-      SetTileBaseColor(_TileSelected);
+      if (_TileSelected.x != -1)
+      {
+        SetTileBaseColor(_TileSelected);
+        _TileSelected.x = -1;
+      }
     }
 
     //
@@ -195,7 +200,11 @@ public class PlayerController : MonoBehaviour
     }
     public void ClearAttackTile()
     {
-      SetTileBaseColor(_attackIndicator);
+      if (_attackIndicator.x != -1)
+      {
+        SetTileBaseColor(_attackIndicator);
+        _attackIndicator.x = -1;
+      }
     }
 
     //
@@ -217,17 +226,25 @@ public class PlayerController : MonoBehaviour
     }
     public void ClearBuffTile()
     {
-      SetTileBaseColor(_buffIndicator);
+      if (_buffIndicator.x != -1)
+      {
+        if (_TileSelected == _buffIndicator)
+          SelectTile(_TileSelected);
+        else
+          SetTileBaseColor(_buffIndicator);
+        _buffIndicator.x = -1;
+      }
     }
 
     //
-    public void SetTileBaseColor(Vector2Int tilePos)
+    void SetTileBaseColor(Vector2Int tilePos)
     {
       var img = ObjectController.GetTileMapImage(tilePos);
       img.color = ObjectController.IsDeployTile(tilePos) ? Color.white * 0.75f : Color.white;
     }
 
     //
+    public CardController.CardData _ForcedViewedCardObject0;
     public ObjectController.CardObject[] _ViewedObjects;
     public static void SetViewedObject(int index, ObjectController.CardObject cardObject)
     {
@@ -236,11 +253,23 @@ public class PlayerController : MonoBehaviour
       {
         DeckController.ShowCardObjectData(index, cardObject._CardData);
         if (index == 0)
+        {
+          s_Singleton._ForcedViewedCardObject0 = null;
           s_Singleton.SelectTile(cardObject._Position);
+        }
       }
     }
     public static void UpdateViewedObject(int index)
     {
+
+      // Check forced view
+      if (index == 0 && s_Singleton._ForcedViewedCardObject0 != null)
+      {
+        DeckController.ShowCardObjectData(index, s_Singleton._ForcedViewedCardObject0);
+        return;
+      }
+
+      //
       var cardObject = s_Singleton._ViewedObjects[index];
       if (cardObject != null)
       {
@@ -261,6 +290,13 @@ public class PlayerController : MonoBehaviour
       {
         UpdateViewedObject(i);
       }
+    }
+
+    //
+    public static void ForceViewedCardData(CardController.CardData cardData)
+    {
+      s_Singleton._ForcedViewedCardObject0 = cardData;
+      DeckController.ShowCardObjectData(0, cardData);
     }
 
     //
@@ -359,6 +395,8 @@ public class PlayerController : MonoBehaviour
   //
   public void OnTurnEnd()
   {
+    if (ObjectController._IsActionsHappening) return;
+
     GameController.s_Singleton.OnTurnsEnded();
 
     _mana = 4;

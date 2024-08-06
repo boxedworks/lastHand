@@ -165,13 +165,6 @@ public class HandController
     if (ObjectController._IsActionsHappening)
       return false;
 
-    // Check on correct side of battlefield
-    var battlefieldYRange = _playerController._OwnerId == 0 ?
-      new Vector2Int(ObjectController.s_TileMapSize.y / 2, ObjectController.s_TileMapSize.y - 1) :
-      new Vector2Int(0, ObjectController.s_TileMapSize.y / 2 - 1);
-    if (_playerController._TileHovered.y < battlefieldYRange.x || _playerController._TileHovered.y > battlefieldYRange.y)
-      return false;
-
     //
     var cardObject = ObjectController.GetCardObject(_playerController._TileHovered);
 
@@ -185,14 +178,23 @@ public class HandController
     var isSpell = _cardSelected.CardData.IsSpell;
     if (isSpell)
     {
-      if (cardObject != null)
-        return true;
-      return false;
+      return cardObject != null && !cardObject._CardData.IsObject;
     }
 
-    // Check normal unit
+    // Check on correct side of battlefield
+    var battlefieldYRange = _playerController._OwnerId == 0 ?
+      new Vector2Int(ObjectController.s_TileMapSize.y / 2, ObjectController.s_TileMapSize.y - 1) :
+      new Vector2Int(0, ObjectController.s_TileMapSize.y / 2 - 1);
+    if (_playerController._TileHovered.y < battlefieldYRange.x || _playerController._TileHovered.y > battlefieldYRange.y)
+      return false;
+
+    // Check unit
     if (cardObject == null)
     {
+      // Check object
+      if (_cardSelected.CardData.IsObject && ObjectController.IsDeployTile(_playerController._TileHovered))
+        return false;
+
       return true;
     }
 

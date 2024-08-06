@@ -57,7 +57,7 @@ public class DeckController
     _textManaDisplay = GameObject.Find("ManaDisplay").transform.GetChild(0).GetChild(0).GetChild(0).GetComponent<TMPro.TextMeshProUGUI>();
 
     // Create simple deck
-    for (var i = 0; i < 5; i++)
+    for (var i = 0; i < 4; i++)
       _cardsDeck.Add(new CardController.CardHandData()
       {
         Id = CardController.GetCardIdByName("footsoldier")
@@ -77,10 +77,15 @@ public class DeckController
       {
         Id = 13
       });*/
-    for (var i = 0; i < 1; i++)
+    for (var i = 0; i < 2; i++)
       _cardsDeck.Add(new CardController.CardHandData()
       {
         Id = CardController.GetCardIdByName("prepare")
+      });
+    for (var i = 0; i < 2; i++)
+      _cardsDeck.Add(new CardController.CardHandData()
+      {
+        Id = CardController.GetCardIdByName("supply crate")
       });
     _textDeckCount.text = $"{_cardsDeck.Count}";
 

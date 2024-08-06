@@ -149,6 +149,25 @@ public class CardController
         Attack = 1
       }
     });
+
+    RegisterCard(28, new CardData()
+    {
+      TextTitle = "Supply Crate",
+      TextDescription = "",
+
+      Deck = CardData.DeckType.KNIGHT,
+
+      BehaviorPattern = "object:buff(1,1,self)",
+
+      CardInstanceData = new CardInstanceData()
+      {
+        Cost = 1,
+
+        Health = 0,
+        Attack = 0
+      }
+    });
+
     RegisterCard(34, new CardData()
     {
       TextTitle = "Prepare",
@@ -156,7 +175,7 @@ public class CardController
 
       Deck = CardData.DeckType.KNIGHT,
 
-      BehaviorPattern = "spell;target:health(+3)",
+      BehaviorPattern = "spell:buff(0,3,self)",
 
       CardInstanceData = new CardInstanceData()
       {
@@ -187,17 +206,13 @@ public class CardController
     // Check spell
     if (cardData.IsSpell)
     {
-
-      // Spell effects
-
+      ObjectController.TrySpell(ObjectController.GetCardObject(atPos), cardData);
     }
 
     // Unit
     else
     {
       new ObjectController.CardObject(ownerId, atPos, cardData);
-
-      // Summon effects
     }
 
   }
@@ -270,6 +285,11 @@ public class CardController
       ObjectController.s_TileMapSize.y - 1 - atPos.y :
       atPos.y;
 
+    // Check object
+    if (cardData.IsObject)
+      return baseMana + (ObjectController.s_TileMapSize.y / 2 - 1) - tileManaMod;
+
+    // Unit
     return baseMana + tileManaMod;
   }
 
@@ -311,11 +331,13 @@ public class CardController
     /// Card behaviors
     // "m1b1:move-f"
     public string BehaviorPattern;
-    public bool IsSpell { get { return BehaviorPattern.Contains("spell;"); } }
+    public bool IsSpell { get { return BehaviorPattern.Contains("spell:"); } }
+    public bool IsObject { get { return BehaviorPattern.Contains("object:"); } }
     public bool HasStartEffect { get { return BehaviorPattern.Contains("start:"); } }
     public bool HasTapEffect { get { return BehaviorPattern.Contains("tap:"); } }
     public bool HasBattleCrossEffect { get { return BehaviorPattern.Contains("battlecross:"); } }
     public bool IsStationary { get { return BehaviorPattern.StartsWith("0"); } }
+    public bool HasExtraRange { get { return BehaviorPattern.Contains("range(1)"); } }
 
     //
     public CardInstanceData CardInstanceData;
