@@ -168,6 +168,24 @@ public class CardController
       }
     });
 
+    RegisterCard(30, new CardData()
+    {
+      TextTitle = "Whetstone",
+      TextDescription = "",
+
+      Deck = CardData.DeckType.KNIGHT,
+
+      BehaviorPattern = "object:buff(1,0,randomSelfCard)",
+
+      CardInstanceData = new CardInstanceData()
+      {
+        Cost = 2,
+
+        Health = 0,
+        Attack = 0
+      }
+    });
+
     RegisterCard(34, new CardData()
     {
       TextTitle = "Prepare",
@@ -218,24 +236,18 @@ public class CardController
   }
 
   //
-  public static GameObject SpawnCardBase(int cardId, Transform parent, Vector3 spawnPosition)
+  public static GameObject SpawnCardBase(CardData cardData, Transform parent, Vector3 spawnPosition)
   {
     var cardBase = GameObject.Instantiate(s_Singleton._CardBase);
     (cardBase.transform as RectTransform).SetParent(parent);
 
     // Set flavor texts
-    SetCardBaseData(cardBase, cardId);
+    SetCardBaseData(cardBase, cardData);
 
     cardBase.transform.position = spawnPosition;
     cardBase.SetActive(true);
 
     return cardBase;
-  }
-  public static void SetCardBaseData(GameObject cardBase, int cardId)
-  {
-    var cardData = GetCardData(cardId);
-
-    SetCardBaseData(cardBase, cardData);
   }
   public static void SetCardBaseData(GameObject cardBase, CardData cardData)
   {
@@ -397,12 +409,24 @@ public class CardController
   }
 
   // Each object represents a card
-  public struct CardHandData
+  public class CardHandData
   {
     public int Id;
-    public CardData Data { get { return GetCardData(Id); } }
+    public CardData CardData;
 
     public GameObject GameObject;
+
+    //
+    public CardHandData(int cardId)
+    {
+      Id = cardId;
+      CardData = CardData.Clone(GetCardData(cardId));
+    }
+    public CardHandData(CardData cardData)
+    {
+      Id = cardData.CardId;
+      CardData = CardData.Clone(cardData);
+    }
   }
 
   //

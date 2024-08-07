@@ -4,13 +4,15 @@ using UnityEngine;
 
 using Mirror;
 
+using System.Linq;
+
 public class GameController : MonoBehaviour
 {
   public static GameController s_Singleton;
 
   public BeatController _beatController;
 
-  EnemyController _enemyController;
+  public EnemyController _EnemyController;
 
   // Start is called before the first frame update
   void Start()
@@ -20,14 +22,12 @@ public class GameController : MonoBehaviour
     new CardController();
     new ObjectController();
 
-    _enemyController = new();
-
     //_beatController = new();
 
     //
     GameObject.Find("EndTurnButton").GetComponent<UnityEngine.UI.Button>().onClick.AddListener(() =>
     {
-      PlayerController.s_Players[0].OnTurnEnd();
+      PlayerController.s_Players[0]._OwnerController.OnTurnEnd();
     });
 
     // Start network
@@ -48,7 +48,8 @@ public class GameController : MonoBehaviour
   }
 
   //
-  public void OnTurnsEnded(){
+  public void OnTurnsEnded()
+  {
     ObjectController.s_Singleton.HandleCardObjects();
   }
 
@@ -57,12 +58,19 @@ public class GameController : MonoBehaviour
   {
 
     //
+    public PlayerController.OwnerController _OwnerController;
+
+    //
     public EnemyController()
     {
       new ObjectController.CardObject(0, new Vector2Int(4, 5), CardController.GetCardData(1));
       new ObjectController.CardObject(0, new Vector2Int(2, 5), CardController.GetCardData(2));
       new ObjectController.CardObject(0, new Vector2Int(1, 4), CardController.GetCardData(3));
       new ObjectController.CardObject(0, new Vector2Int(2, 4), CardController.GetCardData(6));
+
+      //
+      _OwnerController = new(0);
+      _OwnerController.SetHealth(10);
     }
 
     //
@@ -72,16 +80,107 @@ public class GameController : MonoBehaviour
     }
 
     //
-    public void OnTurnEnd()
+    public void OnTurnBegin()
     {
 
       // Move units
 
+      // Give mana
+      _OwnerController._Mana = 4;
 
-      //
-
+      // Draw 3 cards
+      for (var i = 0; i < 3; i++)
+        _OwnerController._Deck.DrawCard();
 
     }
+
+    //
+    public bool DecideMove()
+    {
+
+      // Gather list of possible moves
+      var actionsTotal = new List<(int manaCost, System.Action action)>();
+
+      // Gather taps
+      var cardObjects = ObjectController.GetCardObjects(0).Where(x => x._CardData.HasTapEffect && !x._IsTapped).ToList();
+      foreach (var cardObject in cardObjects)
+      {
+        actionsTotal.Add((manaCost: 0, action: () =>
+        {
+          ObjectController.TryTap(cardObject);
+        }
+        ));
+      }
+
+      // Gather cards in hand
+      var hand = _OwnerController._Hand.GetCards();
+      Debug.Log("Card count: " + hand.Count);
+      var cardIndex = -1;
+      foreach (var card in hand)
+      {
+        cardIndex++;
+
+        Debug.Log($"Checking card action {card.CardData.TextTitle}");
+
+        // Spell
+        if (card.CardData.IsSpell)
+        {
+
+        }
+
+        // Unit / object
+        else
+        {
+
+          // Check if can play unit
+          var baseManaCost = card.CardData.CardInstanceData.Cost;
+          var availableTiles = ObjectController.s_Singleton._TileMapPositionsAll
+            .Where(t => ObjectController.GetCardObject(t) == null)
+            .Where(t => PlayerController.TilemapController.IsTileOnCorrectBattlefield(_OwnerController._OwnerId, t))
+            .Where(t => !card.CardData.IsObject ? true : !ObjectController.IsDeployTile(t))
+            .Where(t => CardController.GetCardManaCost(_OwnerController._OwnerId, card.CardData, t) <= _OwnerController._Mana)
+            .ToList();
+          if (availableTiles.Count == 0)
+            continue;
+
+          var cardData = card.CardData;
+          var randomPos = availableTiles[Random.Range(0, availableTiles.Count)];
+          var manaCost = CardController.GetCardManaCost(_OwnerController._OwnerId, cardData, randomPos);
+          actionsTotal.Add((manaCost: manaCost, action: () =>
+          {
+
+            Debug.Log($"Playing card {card.CardData.TextTitle}[{manaCost}] : {randomPos}");
+
+            // Play card in random pos
+            _OwnerController._Hand.PlayCard(cardIndex, cardData, randomPos);
+
+          }
+          ));
+        }
+      }
+
+      //
+      if (actionsTotal.Count == 0)
+      {
+
+        return false;
+
+      }
+
+      // Execute action
+      else
+      {
+
+        actionsTotal[Random.Range(0, actionsTotal.Count)].action.Invoke();
+        return true;
+      }
+    }
+
+    /*/
+    IEnumerator PlayUnitCard()
+    {
+
+    }*/
 
   }
 

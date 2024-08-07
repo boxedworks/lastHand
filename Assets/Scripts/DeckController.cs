@@ -7,87 +7,79 @@ using UnityEngine.UI;
 public class DeckController
 {
 
-  PlayerController _playerController;
+  PlayerController.OwnerController _ownerController;
 
   public RectTransform _DeckIcon, _DiscardIcon, _DeckViewer, _CardViewer;
   TMPro.TextMeshProUGUI _textDeckCount, _textDiscardCount, _textManaDisplay;
 
   RectTransform _cardFx_deckSelect, _cardFx_discardSelect, _cardFx_deckViewerSelect, _cardFx_deckViewerBg, _cardFx_cardViewerBg;
 
-  List<CardController.CardHandData> _cardsAll, _cardsDeck, _cardsDiscard;
+  List<CardController.CardHandData> _cardsAll, _cardsDeck, _cardsDiscard, _cardReshuffing;
 
-  List<GameObject> _discardingCards, _reshufflingCards;
+  List<GameObject> _discardingCards;
 
   public bool _GameInteractive { get { return !_displayingDeck && !_displayingCard; } }
-  public DeckController(PlayerController playerController)
+  public DeckController(PlayerController.OwnerController ownerController)
   {
-    _playerController = playerController;
+    _ownerController = ownerController;
 
     _cardsAll = new();
     _cardsDeck = new();
     _cardsDiscard = new();
 
     _discardingCards = new();
-    _reshufflingCards = new();
+    _cardReshuffing = new();
 
+    // UI
+    if (_ownerController._OwnerId == 1)
+    {
+      var deckColor = CardController.GetDeckColor(CardController.CardData.DeckType.KNIGHT);
 
-    var deckColor = CardController.GetDeckColor(CardController.CardData.DeckType.KNIGHT);
+      _DeckIcon = GameObject.Find("PlayerDeck").transform.Find("CardBase") as RectTransform;
+      _DeckIcon.GetChild(0).GetChild(0).GetComponent<Image>().color = deckColor;
+      _DeckIcon.GetChild(0).GetChild(1).GetChild(1).GetComponent<Image>().color = deckColor;
+      _cardFx_deckSelect = _DeckIcon.parent.GetChild(0).GetChild(0) as RectTransform;
+      _textDeckCount = _DeckIcon.GetChild(0).GetChild(1).GetChild(2).GetComponent<TMPro.TextMeshProUGUI>();
+      _textDeckCount.text = $"{_cardsDeck.Count}";
 
-    _DeckIcon = GameObject.Find("PlayerDeck").transform.Find("CardBase") as RectTransform;
-    _DeckIcon.GetChild(0).GetChild(0).GetComponent<Image>().color = deckColor;
-    _DeckIcon.GetChild(0).GetChild(1).GetChild(1).GetComponent<Image>().color = deckColor;
-    _cardFx_deckSelect = _DeckIcon.parent.GetChild(0).GetChild(0) as RectTransform;
-    _textDeckCount = _DeckIcon.GetChild(0).GetChild(1).GetChild(2).GetComponent<TMPro.TextMeshProUGUI>();
-    _textDeckCount.text = $"{_cardsDeck.Count}";
+      _DiscardIcon = GameObject.Find("PlayerDiscard").transform.Find("CardBase") as RectTransform;
+      _DiscardIcon.GetChild(0).GetChild(0).GetComponent<Image>().color = deckColor;
+      _DiscardIcon.GetChild(0).GetChild(1).GetChild(1).GetComponent<Image>().color = deckColor;
+      _cardFx_discardSelect = _DiscardIcon.parent.GetChild(0).GetChild(0) as RectTransform;
+      _textDiscardCount = _DiscardIcon.GetChild(0).GetChild(1).GetChild(2).GetComponent<TMPro.TextMeshProUGUI>();
+      _textDiscardCount.text = $"{_cardsDiscard.Count}";
 
-    _DiscardIcon = GameObject.Find("PlayerDiscard").transform.Find("CardBase") as RectTransform;
-    _DiscardIcon.GetChild(0).GetChild(0).GetComponent<Image>().color = deckColor;
-    _DiscardIcon.GetChild(0).GetChild(1).GetChild(1).GetComponent<Image>().color = deckColor;
-    _cardFx_discardSelect = _DiscardIcon.parent.GetChild(0).GetChild(0) as RectTransform;
-    _textDiscardCount = _DiscardIcon.GetChild(0).GetChild(1).GetChild(2).GetComponent<TMPro.TextMeshProUGUI>();
-    _textDiscardCount.text = $"{_cardsDiscard.Count}";
+      _DeckViewer = GameObject.Find("DeckViewer").transform as RectTransform;
+      _cardFx_deckViewerBg = _DeckViewer.GetChild(0).GetChild(0) as RectTransform;
+      _cardFx_deckViewerSelect = _DeckViewer.GetChild(0).GetChild(1) as RectTransform;
 
-    _DeckViewer = GameObject.Find("DeckViewer").transform as RectTransform;
-    _cardFx_deckViewerBg = _DeckViewer.GetChild(0).GetChild(0) as RectTransform;
-    _cardFx_deckViewerSelect = _DeckViewer.GetChild(0).GetChild(1) as RectTransform;
+      _CardViewer = GameObject.Find("CardViewer").transform as RectTransform;
+      _cardFx_cardViewerBg = _CardViewer.GetChild(0).GetChild(0) as RectTransform;
 
-    _CardViewer = GameObject.Find("CardViewer").transform as RectTransform;
-    _cardFx_cardViewerBg = _CardViewer.GetChild(0).GetChild(0) as RectTransform;
-
-    _textManaDisplay = GameObject.Find("ManaDisplay").transform.GetChild(0).GetChild(0).GetChild(0).GetComponent<TMPro.TextMeshProUGUI>();
+      _textManaDisplay = GameObject.Find("ManaDisplay").transform.GetChild(0).GetChild(0).GetChild(0).GetComponent<TMPro.TextMeshProUGUI>();
+    }
 
     // Create simple deck
     for (var i = 0; i < 4; i++)
-      _cardsDeck.Add(new CardController.CardHandData()
-      {
-        Id = CardController.GetCardIdByName("footsoldier")
-      });
+      _cardsDeck.Add(new CardController.CardHandData(CardController.GetCardIdByName("footsoldier")));
     for (var i = 0; i < 2; i++)
-      _cardsDeck.Add(new CardController.CardHandData()
-      {
-        Id = CardController.GetCardIdByName("guard")
-      });
+      _cardsDeck.Add(new CardController.CardHandData(CardController.GetCardIdByName("guard")));
     for (var i = 0; i < 1; i++)
-      _cardsDeck.Add(new CardController.CardHandData()
-      {
-        Id = CardController.GetCardIdByName("spearman")
-      });
+      _cardsDeck.Add(new CardController.CardHandData(CardController.GetCardIdByName("spearman")));
     /*for (var i = 0; i < 1; i++)
       _cardsDeck.Add(new CardController.CardHandData()
       {
         Id = 13
       });*/
     for (var i = 0; i < 2; i++)
-      _cardsDeck.Add(new CardController.CardHandData()
-      {
-        Id = CardController.GetCardIdByName("prepare")
-      });
-    for (var i = 0; i < 2; i++)
-      _cardsDeck.Add(new CardController.CardHandData()
-      {
-        Id = CardController.GetCardIdByName("supply crate")
-      });
-    _textDeckCount.text = $"{_cardsDeck.Count}";
+      _cardsDeck.Add(new CardController.CardHandData(CardController.GetCardIdByName("prepare")));
+    for (var i = 0; i < 1; i++)
+      _cardsDeck.Add(new CardController.CardHandData(CardController.GetCardIdByName("supply crate")));
+    for (var i = 0; i < 1; i++)
+      _cardsDeck.Add(new CardController.CardHandData(CardController.GetCardIdByName("whetstone")));
+
+    if (_textDeckCount)
+      _textDeckCount.text = $"{_cardsDeck.Count}";
 
     ShuffleDeck();
   }
@@ -118,43 +110,43 @@ public class DeckController
 
         _lastReshuffleTime = Time.time;
 
-        var cardId = _cardsDiscard[_reshuffleAmount - 1].Id;
+        var cardDiscarded = _cardsDiscard[_reshuffleAmount - 1];
         _cardsDiscard.RemoveAt(_reshuffleAmount - 1);
         _textDiscardCount.text = $"{_cardsDiscard.Count}";
 
         var cardBase = CardController.SpawnCardBase(
-          cardId,
+          cardDiscarded.CardData,
           _DeckIcon.parent,
           _DiscardIcon.position
         );
 
-        _reshufflingCards.Add(cardBase);
+        _cardReshuffing.Add(new CardController.CardHandData(cardDiscarded.CardData)
+        {
+          GameObject = cardBase
+        });
         _reshuffleAmount--;
       }
 
       // Move reshuffle cards to draw pile
-      for (var i = _reshufflingCards.Count - 1; i >= 0; i--)
+      for (var i = _cardReshuffing.Count - 1; i >= 0; i--)
       {
-        var cardObject = _reshufflingCards[i];
+        var cardObject = _cardReshuffing[i];
 
         var desiredPosition = _DeckIcon.position;
-        cardObject.transform.position += (desiredPosition - cardObject.transform.position) * Time.deltaTime * 12f;
+        cardObject.GameObject.transform.position += (desiredPosition - cardObject.GameObject.transform.position) * Time.deltaTime * 12f;
 
-        if ((desiredPosition - cardObject.transform.position).magnitude < 20f)
+        if ((desiredPosition - cardObject.GameObject.transform.position).magnitude < 20f)
         {
-          GameObject.Destroy(cardObject);
-          _reshufflingCards.RemoveAt(i);
+          GameObject.Destroy(cardObject.GameObject);
+          _cardReshuffing.RemoveAt(i);
 
-          _cardsDeck.Add(new CardController.CardHandData()
-          {
-            Id = int.Parse(cardObject.name)
-          });
+          _cardsDeck.Add(new CardController.CardHandData(cardObject.CardData));
           _textDeckCount.text = $"{_cardsDeck.Count}";
         }
       }
 
       //
-      if (_reshuffleAmount == 0 && _reshufflingCards.Count == 0)
+      if (_reshuffleAmount == 0 && _cardReshuffing.Count == 0)
       {
         _reshuffling = false;
 
@@ -196,21 +188,21 @@ public class DeckController
         deckViewer.anchoredPosition += (new Vector2(50f, _deckViewerYPosition) - deckViewer.anchoredPosition) * Time.deltaTime * 5f;
 
         // Check card select
-        var hasCardHover = false;
+        CardController.CardHandData cardHover = null;
         foreach (var card in _deckViewerCards)
         {
-          if (RectTransformUtility.RectangleContainsScreenPoint(card, Input.mousePosition))
+          if (RectTransformUtility.RectangleContainsScreenPoint(card.GameObject.transform as RectTransform, Input.mousePosition))
           {
-            hasCardHover = true;
+            cardHover = card;
 
-            _cardFx_deckViewerSelect.SetParent(card);
+            _cardFx_deckViewerSelect.SetParent(card.GameObject.transform);
             _cardFx_deckViewerSelect.SetAsFirstSibling();
             _cardFx_deckViewerSelect.anchoredPosition = Vector2.zero;
 
             _cardFx_deckViewerSelect.gameObject.SetActive(true);
           }
         }
-        if (!hasCardHover)
+        if (cardHover == null)
         {
           _cardFx_deckViewerSelect.SetParent(_DeckViewer.GetChild(0));
           _cardFx_deckViewerSelect.gameObject.SetActive(false);
@@ -221,9 +213,9 @@ public class DeckController
         {
 
           // View card details
-          if (_cardFx_deckViewerSelect.gameObject.activeSelf)
+          if (cardHover != null)
           {
-            ShowCardViewer(int.Parse(_cardFx_deckViewerSelect.parent.gameObject.name));
+            ShowCardViewer(cardHover.CardData);
           }
 
           // Hide deck display
@@ -285,7 +277,11 @@ public class DeckController
   {
 
     // Check reshuffling
-    if (_reshuffling) return;
+    if (_reshuffling)
+    {
+      Debug.Log("Cannot draw. Is reshuffling.....");
+      return;
+    }
 
     // Empty deck; reshuffle
     if (_cardsDeck.Count == 0)
@@ -305,10 +301,11 @@ public class DeckController
     _cardsDeck.RemoveAt(0);
 
     // Add to player hand
-    _playerController._Hand.AddCard(nextCard.Id);
+    _ownerController._Hand.AddCard(nextCard.CardData);
 
     // Set deck count UI
-    _textDeckCount.text = $"{_cardsDeck.Count}";
+    if (_ownerController._OwnerId != 0)
+      _textDeckCount.text = $"{_cardsDeck.Count}";
   }
 
   // Add a card to the discard pile
@@ -316,16 +313,15 @@ public class DeckController
   {
 
     // Animate card gameObject to discard pile
-    _discardingCards.Add(cardHandData.GameObject);
+    if (_ownerController._OwnerId != 0)
+      _discardingCards.Add(cardHandData.GameObject);
 
     // Add card data to discard pile
-    _cardsDiscard.Add(new CardController.CardHandData()
-    {
-      Id = cardHandData.Id
-    });
+    _cardsDiscard.Add(new CardController.CardHandData(cardHandData.CardData));
 
     // Increment discard number
-    _textDiscardCount.text = $"{_cardsDiscard.Count}";
+    if (_ownerController._OwnerId != 0)
+      _textDiscardCount.text = $"{_cardsDiscard.Count}";
   }
 
   //
@@ -346,7 +342,7 @@ public class DeckController
   bool _displayingDeck;
   float _deckViewerYPosition;
   int _deckViewerRowHeight;
-  List<RectTransform> _deckViewerCards;
+  List<CardController.CardHandData> _deckViewerCards;
   void ShowDisplayDeck(bool isDeck)
   {
     var cards = isDeck ? _cardsDeck : _cardsDiscard;
@@ -375,7 +371,7 @@ public class DeckController
 
       // Create a new card
       var cardBase = GameObject.Instantiate(cardBaseOriginal.gameObject);
-      CardController.SetCardBaseData(cardBase, cards[i].Id);
+      CardController.SetCardBaseData(cardBase, cards[i].CardData);
 
       //
       if (cardRowAmount == 7 || i == 0)
@@ -394,7 +390,10 @@ public class DeckController
       (cardBase.transform as RectTransform).SetParent(_DeckViewer.GetChild(1).GetChild(_deckViewerRowHeight));
       cardRowAmount++;
 
-      _deckViewerCards.Add(cardBase.transform as RectTransform);
+      _deckViewerCards.Add(new CardController.CardHandData(cards[i].CardData)
+      {
+        GameObject = cardBase
+      });
 
       //
       cardBase.SetActive(true);
@@ -414,13 +413,13 @@ public class DeckController
 
   //
   bool _displayingCard;
-  public void ShowCardViewer(int cardId)
+  public void ShowCardViewer(CardController.CardData cardData)
   {
     _displayingCard = true;
     _cardFx_cardViewerBg.gameObject.SetActive(true);
 
     var cardBase = _CardViewer.GetChild(1).GetChild(0);
-    CardController.SetCardBaseData(cardBase.gameObject, cardId);
+    CardController.SetCardBaseData(cardBase.gameObject, cardData);
     cardBase.transform.parent.gameObject.SetActive(true);
   }
   void HideCardViewer()
@@ -435,6 +434,6 @@ public class DeckController
   //
   public void UpdateManaDisplay()
   {
-    _textManaDisplay.text = $"{_playerController._Mana}";
+    _textManaDisplay.text = $"{_ownerController._Mana}";
   }
 }

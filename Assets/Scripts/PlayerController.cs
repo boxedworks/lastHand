@@ -8,15 +8,64 @@ using System.Linq;
 public class PlayerController : MonoBehaviour
 {
   public static List<PlayerController> s_Players;
+  public static PlayerController s_LocalPlayer { get { return s_Players[0]; } }
 
-  public int _OwnerId;
 
-  public HandController _Hand;
-  public DeckController _Deck;
+  public class OwnerController
+  {
+    public int _OwnerId;
 
-  //
-  int _mana;
-  public int _Mana { get { return _mana; } }
+    public HandController _Hand;
+    public DeckController _Deck;
+
+    //
+    public int _Mana;
+    public int _Health;
+
+    //
+    public OwnerController(int ownerId)
+    {
+      _OwnerId = ownerId;
+      _Mana = 4;
+
+      _Hand = new(this);
+      _Deck = new(this);
+    }
+
+    //
+    void UpdateHealthUi()
+    {
+      if (_OwnerId == 0)
+        GameObject.Find("SystemHealth").transform.GetChild(1).GetComponent<TMPro.TextMeshPro>().text = $"{_Health}";
+      else
+        GameObject.Find("PlayerHealth").transform.GetChild(1).GetComponent<TMPro.TextMeshPro>().text = $"{_Health}";
+    }
+    public void SetHealth(int health)
+    {
+      _Health = health;
+      UpdateHealthUi();
+    }
+
+    //
+    public void OnCardPlayed(CardController.CardData cardData, Vector2Int atPos)
+    {
+      _Mana -= CardController.GetCardManaCost(_OwnerId, cardData, atPos);
+      if (_OwnerId != 0)
+        _Deck.UpdateManaDisplay();
+    }
+
+    //
+    public void OnTurnEnd()
+    {
+      if (ObjectController._IsActionsHappening) return;
+
+      GameController.s_Singleton.OnTurnsEnded();
+
+      _Mana = 4;
+      _Deck.UpdateManaDisplay();
+    }
+  }
+  public OwnerController _OwnerController;
 
   //
   public Vector2Int _TileHovered { get { return TilemapController.s_Singleton._TileHovered; } }
@@ -59,8 +108,13 @@ public class PlayerController : MonoBehaviour
         for (var x = 0; x < ObjectController.s_TileMapSize.x; x++)
         {
           var tilePos = new Vector2Int(x, y);
-          SetTileBaseColor(tilePos);
+          UpdateTileColors();
         }
+
+      //
+      ClearBuffTile();
+      ClearAttackTile();
+      ClearAttackingOwnerIndicator();
     }
 
     //
@@ -106,7 +160,7 @@ public class PlayerController : MonoBehaviour
           {
 
             // Update hand costs
-            _playerController._Hand.UpdateHandManaCosts(_TileHovered);
+            _playerController._OwnerController._Hand.UpdateHandManaCosts(_TileHovered);
           }
 
           //
@@ -117,7 +171,7 @@ public class PlayerController : MonoBehaviour
           }
 
           // Selection
-          if (!_playerController._Hand._HasSelectedCard && !ObjectController._IsActionsHappening && Input.GetMouseButtonUp(0))
+          if (!_playerController._OwnerController._Hand._HasSelectedCard && !ObjectController._IsActionsHappening && Input.GetMouseButtonUp(0))
           {
 
             SelectTile(tilePos);
@@ -135,7 +189,7 @@ public class PlayerController : MonoBehaviour
               // Tap
               else
               {
-                if (cardObject._OwnerId == _playerController._OwnerId)
+                if (cardObject._OwnerId == _playerController._OwnerController._OwnerId)
                   ObjectController.TryTap(cardObject);
               }
 
@@ -150,7 +204,7 @@ public class PlayerController : MonoBehaviour
         // Old hover
         if (oldHover.x != -1 && oldHover != _TileHovered && oldHover != _TileSelected)
         {
-          SetTileBaseColor(oldHover);
+          UpdateTileColors();
         }
       }
     }
@@ -158,89 +212,93 @@ public class PlayerController : MonoBehaviour
     //
     public void SelectTile(Vector2Int tilePos)
     {
-      var oldSelected = _TileSelected;
       _TileSelected = tilePos;
-
-      if (oldSelected.x != -1 && oldSelected != _TileSelected)
-      {
-        SetTileBaseColor(oldSelected);
-      }
-
-      {
-        var img = ObjectController.GetTileMapImage(tilePos);
-        img.color = Color.green;
-      }
+      UpdateTileColors();
     }
 
     public void ClearSelectedTile()
     {
-      if (_TileSelected.x != -1)
-      {
-        SetTileBaseColor(_TileSelected);
-        _TileSelected.x = -1;
-      }
+      _TileSelected.x = -1;
+      UpdateTileColors();
     }
 
     //
     Vector2Int _attackIndicator;
     public void SetAttackIndicator(Vector2Int tilePos)
     {
-      var oldSelected = _attackIndicator;
       _attackIndicator = tilePos;
-
-      if (oldSelected.x != -1 && oldSelected != _TileSelected)
-      {
-        SetTileBaseColor(oldSelected);
-      }
-
-      {
-        var img = ObjectController.GetTileMapImage(tilePos);
-        img.color = Color.red;
-      }
+      UpdateTileColors();
     }
     public void ClearAttackTile()
     {
-      if (_attackIndicator.x != -1)
-      {
-        SetTileBaseColor(_attackIndicator);
-        _attackIndicator.x = -1;
-      }
+      _attackIndicator.x = -1;
+      UpdateTileColors();
     }
 
     //
     Vector2Int _buffIndicator;
     public void SetBuffIndicator(Vector2Int tilePos)
     {
-      var oldSelected = _buffIndicator;
       _buffIndicator = tilePos;
-
-      if (oldSelected.x != -1 && oldSelected != _TileSelected)
-      {
-        SetTileBaseColor(oldSelected);
-      }
-
-      {
-        var img = ObjectController.GetTileMapImage(tilePos);
-        img.color = Color.yellow;
-      }
+      UpdateTileColors();
     }
     public void ClearBuffTile()
     {
-      if (_buffIndicator.x != -1)
-      {
-        if (_TileSelected == _buffIndicator)
-          SelectTile(_TileSelected);
-        else
-          SetTileBaseColor(_buffIndicator);
-        _buffIndicator.x = -1;
-      }
+      _buffIndicator.x = -1;
+      UpdateTileColors();
     }
 
     //
-    void SetTileBaseColor(Vector2Int tilePos)
+    Vector2Int _attackingOwnerPos = new Vector2Int(3, 2);
+    int _attackingOwnerDir = 1;
+    public void SetAttackingOwnerIndicator(Vector2Int tilePos, int ownerId)
     {
+      _attackingOwnerPos = tilePos;
+      _attackingOwnerDir = ownerId == 0 ? -1 : 1;
+      UpdateTileColors();
+    }
+    public void ClearAttackingOwnerIndicator()
+    {
+      _attackingOwnerPos.x = -1;
+      UpdateTileColors();
+    }
+    //
+    void UpdateTileColor(Vector2Int tilePos)
+    {
+
       var img = ObjectController.GetTileMapImage(tilePos);
-      img.color = ObjectController.IsDeployTile(tilePos) ? Color.white * 0.75f : Color.white;
+
+
+      // Check attack
+      if (_attackIndicator == tilePos)
+        img.color = Color.red;
+
+      // Check attacking owner
+      else if (tilePos.x == _attackingOwnerPos.x && (_attackingOwnerDir == 1 ? tilePos.y > _attackingOwnerPos.y : tilePos.y < _attackingOwnerPos.y))
+        img.color = Color.red;
+
+      // Check buff
+      else if (_buffIndicator == tilePos)
+        img.color = Color.yellow;
+
+      // Check selected
+      else if (_TileSelected == tilePos)
+        img.color = Color.green;
+
+      // Check hover
+      else if (_TileHovered == tilePos)
+        img.color = Color.gray;
+
+      // None
+      else
+        img.color = ObjectController.IsDeployTile(tilePos) ? Color.white * 0.75f : Color.white;
+    }
+    void UpdateTileColors()
+    {
+      foreach (var pos in ObjectController.s_Singleton._TileMapPositionsAll)
+      {
+        UpdateTileColor(pos);
+      }
     }
 
     //
@@ -300,6 +358,18 @@ public class PlayerController : MonoBehaviour
     }
 
     //
+    public static bool IsTileOnCorrectBattlefield(int ownerId, Vector2Int tilePos)
+    {
+      var battlefieldYRange = ownerId == 0 ?
+        new Vector2Int(ObjectController.s_TileMapSize.y / 2, ObjectController.s_TileMapSize.y - 1) :
+        new Vector2Int(0, ObjectController.s_TileMapSize.y / 2 - 1);
+      if (tilePos.y < battlefieldYRange.x || tilePos.y > battlefieldYRange.y)
+        return false;
+
+      return true;
+    }
+
+    //
     public void OnTurnEnd()
     {
 
@@ -325,26 +395,29 @@ public class PlayerController : MonoBehaviour
     if (s_Players == null) s_Players = new();
     s_Players.Add(this);
 
-    _OwnerId = s_Players.Count;
+    //
+    _OwnerController = new(s_Players.Count);
+    _OwnerController.SetHealth(10);
+    _OwnerController._Deck.UpdateManaDisplay();
 
-    _Deck = new(this);
-    _Hand = new(this);
+    //
     new TilemapController(this);
 
     //
-    _mana = 4;
-    _Deck.UpdateManaDisplay();
+    GameController.s_Singleton._EnemyController = new();
   }
+
+
 
   // Update is called once per frame
   void Update()
   {
 
     // Handle card positions
-    _Deck.Update();
-    if (_Deck._GameInteractive)
+    _OwnerController._Deck.Update();
+    if (_OwnerController._Deck._GameInteractive)
     {
-      _Hand.Update();
+      _OwnerController._Hand.Update();
 
       //
       TilemapController.s_Singleton.Update();
@@ -384,22 +457,4 @@ public class PlayerController : MonoBehaviour
     }
   }
   Vector3 _middleMouseDownPos, _cameraSavePos;
-
-  //
-  public void OnCardPlayed(CardController.CardData cardData, Vector2Int atPos)
-  {
-    _mana -= CardController.GetCardManaCost(_OwnerId, cardData, atPos);
-    _Deck.UpdateManaDisplay();
-  }
-
-  //
-  public void OnTurnEnd()
-  {
-    if (ObjectController._IsActionsHappening) return;
-
-    GameController.s_Singleton.OnTurnsEnded();
-
-    _mana = 4;
-    _Deck.UpdateManaDisplay();
-  }
 }

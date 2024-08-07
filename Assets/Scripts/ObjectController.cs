@@ -5,6 +5,7 @@ using UnityEngine;
 using System.Linq;
 using System;
 using Unity.VisualScripting;
+using UnityEditor.Rendering;
 
 public class ObjectController
 {
@@ -15,7 +16,7 @@ public class ObjectController
   //
   List<CardObject> _objectsAll;
   Dictionary<Vector2Int, CardObject> _objectsTileMap;
-  List<Vector2Int> _tileMapPositionsAll;
+  public List<Vector2Int> _TileMapPositionsAll;
   Dictionary<int, List<CardObject>> _objectsOwner;
   Vector2Int _tileMapSize;
   public static Vector2Int s_TileMapSize { get { return s_Singleton._tileMapSize; } }
@@ -33,12 +34,12 @@ public class ObjectController
     _tileMapSize = new Vector2Int(6, 6);
 
     //
-    _tileMapPositionsAll = new();
+    _TileMapPositionsAll = new();
     for (var y = 0; y < _tileMapSize.y; y++)
       for (var x = 0; x < _tileMapSize.x; x++)
       {
         var tilePos = new Vector2Int(x, y);
-        _tileMapPositionsAll.Add(tilePos);
+        _TileMapPositionsAll.Add(tilePos);
       }
   }
 
@@ -53,30 +54,16 @@ public class ObjectController
       // Check enemy taking turn
       if (_enemyTurn)
       {
-
-        // Play enemy cards / units
-
-        // Enemy turn ended
-        if (_turnObjects.Count == 0)
+        if (_gameCoroutine == null)
         {
-          _enemyTurn = false;
-
-          // Order by x-y
-          var cardObjects = GetCardObjects(0);
-          cardObjects = cardObjects.OrderBy(c => c._Position.y).ThenBy(c => c._Position.x).ToList();
-          _turnObjects = new Queue<CardObject>(cardObjects);
-        }
-
-        // Tap all cards
-        else
-        {
-          if (_gameCoroutine == null)
+          if (!GameController.s_Singleton._EnemyController.DecideMove())
           {
-            var nextObject = _turnObjects.Dequeue();
-            if (nextObject != null && !nextObject._Destroyed)
-            {
-              TryTap(nextObject);
-            }
+            _enemyTurn = false;
+
+            // Order by x-y
+            var cardObjects = GetCardObjects(0);
+            cardObjects = cardObjects.OrderBy(c => c._Position.y).ThenBy(c => c._Position.x).ToList();
+            _turnObjects = new Queue<CardObject>(cardObjects);
           }
         }
       }
@@ -89,10 +76,7 @@ public class ObjectController
           _playerTurn = false;
           _enemyTurn = true;
 
-          // Get all tap monsters
-          var cardObjects = GetCardObjects(0).Where(x => x._CardData.HasTapEffect).ToList();
-          cardObjects.Shuffle();
-          _turnObjects = new Queue<CardObject>(cardObjects);
+          GameController.s_Singleton._EnemyController.OnTurnBegin();
         }
         else
           _takingTurn = false;
@@ -209,7 +193,7 @@ public class ObjectController
   //
   public static Vector2Int[] GetEmptyTiles()
   {
-    return s_Singleton._tileMapPositionsAll
+    return s_Singleton._TileMapPositionsAll
       .Where(x => !s_Singleton._objectsTileMap.ContainsKey(x))
       .ToArray();
   }
@@ -291,7 +275,7 @@ public class ObjectController
     public Vector2Int _Position;
 
     //
-    bool _tapped;
+    public bool _IsTapped;
 
     // Holds local position offsets; allows one object to take up multiple tiles
     Vector2Int[] _positionLocalOffsets;
@@ -344,7 +328,7 @@ public class ObjectController
         2 => Color.blue,
 
         _ => Color.gray
-      }) * (_tapped || !_CardData.HasTapEffect ? 0.7f : 1f);
+      }) * (_IsTapped || !_CardData.HasTapEffect ? 0.7f : 1f);
     }
 
     //
@@ -444,10 +428,16 @@ public class ObjectController
       var middleTilePos = startTilePos + moveAmount;
       var endTilePos = middleTilePos + moveAmount;
 
-      return !CanSetPosition(middleTilePos) && CanSetPosition(endTilePos);
+      return !CanSetPosition(middleTilePos) && (CanSetPosition(endTilePos) || ((GetCardObject(endTilePos)?._CardData.IsObject) ?? false));
     }
-    public bool CanAttack(bool isMoving)
+    public bool CanAttack(bool isMoving, string effectDetails)
     {
+
+      // Attack owner
+      if (CanAttackOwner(effectDetails))
+        return true;
+
+      // Attack unit
       var attackPositions = new List<Vector2Int>();
       if (!isMoving)
         attackPositions.Add(_Position + GetMovementDirection());
@@ -479,6 +469,20 @@ public class ObjectController
     }
 
     //
+    public bool CanAttackOwner(string effectString)
+    {
+      var query = s_Singleton._objectsAll
+        .Where(x => _OwnerId == 0 ? x._Position.y < _Position.y : x._Position.y > _Position.y);
+
+      // Check random targets
+      if (!effectString.Contains("randomEnemy"))
+        query = query.Where(x => x._Position.x == _Position.x);
+
+      //
+      return query.Count() == 0;
+    }
+
+    //
     public IEnumerator TakeTurn(Action onComplete)
     {
 
@@ -490,7 +494,7 @@ public class ObjectController
       if (!_CardData.IsObject)
         yield return ProcessEffect(new EffectData()
         {
-          EffectType = "move"
+          EffectString = "move"
         });
 
       // Object
@@ -498,7 +502,7 @@ public class ObjectController
       //yield return new WaitForSeconds(0.5f);
 
       //
-      _tapped = false;
+      _IsTapped = false;
       SetTokenColor();
 
       //
@@ -513,9 +517,9 @@ public class ObjectController
     {
 
       // Gather tap effect
-      if (_CardData.HasTapEffect && !_tapped)
+      if (_CardData.HasTapEffect && !_IsTapped)
       {
-        _tapped = true;
+        _IsTapped = true;
         SetTokenColor();
 
         yield return ProcessTriggerEffects("tap");
@@ -531,7 +535,7 @@ public class ObjectController
 
       yield return ProcessEffect(new EffectData()
       {
-        EffectType = spellData.BehaviorPattern[6..],
+        EffectString = spellData.BehaviorPattern[6..],
 
         _forceViewedCardData0 = spellData
       });
@@ -551,7 +555,7 @@ public class ObjectController
           var effectDetails = effect[(tagName.Length + 1)..];
           yield return ProcessEffect(new EffectData()
           {
-            EffectType = effectDetails
+            EffectString = effectDetails
           });
         }
 
@@ -561,7 +565,7 @@ public class ObjectController
     //
     class EffectData
     {
-      public string EffectType;
+      public string EffectString;
 
       public CardObject _forceViewedObject0;
       public CardController.CardData _forceViewedCardData0;
@@ -569,9 +573,9 @@ public class ObjectController
     IEnumerator ProcessEffect(EffectData effectData)
     {
 
-      var effectType = effectData.EffectType;
+      var effectString = effectData.EffectString;
 
-      Debug.Log($"processing effect {effectType}");
+      //Debug.Log($"processing effect {effectString}");
       bool effectFired = false;
 
       IEnumerator EffectFired()
@@ -583,7 +587,7 @@ public class ObjectController
           if (effectData._forceViewedCardData0 != null)
           {
             PlayerController.TilemapController.ForceViewedCardData(effectData._forceViewedCardData0);
-            yield return new WaitForSeconds(0.5f);
+            yield return new WaitForSeconds(0.75f);
           }
           else
           {
@@ -593,16 +597,16 @@ public class ObjectController
             if (PlayerController.TilemapController.s_Singleton._ViewedObjects[0] != viewObject)
             {
               PlayerController.TilemapController.SetViewedObject(0, viewObject);
-              yield return new WaitForSeconds(0.5f);
+              yield return new WaitForSeconds(0.75f);
             }
           }
         }
       }
 
       // Check buff
-      if (effectType.StartsWith("buff("))
+      if (effectString.StartsWith("buff("))
       {
-        var effectDetails = effectType[5..^1];
+        var effectDetails = effectString[5..^1];
 
         // Get buff amounts
         var details = effectDetails.Split(",");
@@ -610,57 +614,102 @@ public class ObjectController
         var amountHealth = int.Parse(details[1].Trim());
         var effectTargets = details[2].Trim();
 
-        // Buff targets
-        foreach (var target in getTargets(effectTargets))
+        // Check card targets
+        if (TargetIsCards(effectTargets))
         {
-          yield return EffectFired();
 
-          PlayerController.TilemapController.SetViewedObject(1, target);
-          PlayerController.TilemapController.s_Singleton.SetBuffIndicator(target._Position);
-          Debug.Log(target._Position);
-          yield return new WaitForSeconds(0.75f);
+          foreach (var target in GetCardTargets(effectTargets))
+          {
+            yield return EffectFired();
 
-          target._CardData.CardInstanceData.Attack += amountAttack;
-          target._CardData.CardInstanceData.Health += amountHealth;
-          target.UpdateStatus();
+            target.CardInstanceData.Attack += amountAttack;
+            target.CardInstanceData.Health += amountHealth;
+          }
 
-          PlayerController.TilemapController.UpdateViewedObjects();
-          yield return new WaitForSeconds(0.5f);
+          //
+          _ownerHand.UpdateHand();
+        }
+
+        // Check card object targets
+        else
+        {
+
+          foreach (var target in GetTargets(effectTargets))
+          {
+            yield return EffectFired();
+
+            PlayerController.TilemapController.SetViewedObject(1, target);
+            PlayerController.TilemapController.s_Singleton.SetBuffIndicator(target._Position);
+            yield return new WaitForSeconds(0.75f);
+
+            target._CardData.CardInstanceData.Attack += amountAttack;
+            target._CardData.CardInstanceData.Health += amountHealth;
+            target.UpdateStatus();
+
+            PlayerController.TilemapController.UpdateViewedObjects();
+            yield return new WaitForSeconds(0.5f);
+          }
         }
       }
 
       // Check attack
-      else if (effectType.StartsWith("attack("))
+      else if (effectString.StartsWith("attack("))
       {
-        var effectDetails = effectType[7..^1];
 
-        // Damage targets
-        foreach (var target in getTargets(effectDetails))
+        // Owner damage
+        if (CanAttackOwner(effectString))
         {
+
+          Debug.Log("Attacking owner");
+
           yield return EffectFired();
 
-          PlayerController.TilemapController.SetViewedObject(1, target);
-          PlayerController.TilemapController.s_Singleton.SetAttackIndicator(target._Position);
+          PlayerController.TilemapController.s_Singleton.SetAttackingOwnerIndicator(_Position, _OwnerId);
           yield return new WaitForSeconds(1f);
 
-          // Attack animation
+          var ownerController = _OwnerId == 0 ? PlayerController.s_Players[0]._OwnerController : GameController.s_Singleton._EnemyController._OwnerController;
+          var ownerHealth = ownerController._Health;
+          ownerController.SetHealth(ownerHealth - _CardData.CardInstanceData.Attack);
 
-          // Record damage
-          target._CardData.CardInstanceData.Health -= _CardData.CardInstanceData.Attack;
-          PlayerController.TilemapController.UpdateViewedObjects();
-          target.UpdateStatus();
           yield return new WaitForSeconds(0.5f);
-          yield return SmoothCheckStatus(target);
+          PlayerController.TilemapController.s_Singleton.ClearAttackingOwnerIndicator();
+        }
+
+        // Unit damage
+        else
+        {
+
+          //
+          var effectDetails = effectString[7..^1];
+
+          // Damage targets
+          foreach (var target in GetTargets(effectDetails))
+          {
+            yield return EffectFired();
+
+            PlayerController.TilemapController.SetViewedObject(1, target);
+            PlayerController.TilemapController.s_Singleton.SetAttackIndicator(target._Position);
+            yield return new WaitForSeconds(1f);
+
+            // Attack animation
+
+            // Record damage
+            target._CardData.CardInstanceData.Health -= _CardData.CardInstanceData.Attack;
+            PlayerController.TilemapController.UpdateViewedObjects();
+            target.UpdateStatus();
+            yield return new WaitForSeconds(0.5f);
+            yield return SmoothCheckStatus(target);
+          }
         }
       }
 
       // Check deploy
-      else if (effectType.StartsWith("deploy("))
+      else if (effectString.StartsWith("deploy("))
       {
-        var effectDetails = effectType[7..^1];
+        var effectDetails = effectString[7..^1];
 
         // Spawn new cardObject
-        var cardTarget = getTargets(effectDetails)[0];
+        var cardTarget = GetTargets(effectDetails)[0];
         var freeTiles = GetEmptyDeployTiles(_OwnerId);
         if (freeTiles.Length > 0)
         {
@@ -678,58 +727,76 @@ public class ObjectController
       }
 
       // Check movement
-      else if (effectType.StartsWith("move"))
+      else if (effectString.StartsWith("move"))
       {
 
-        //
-        IEnumerator CheckAttack(bool isMoving)
+        // Cannot be stationary
+        if (!_CardData.IsStationary)
         {
 
-          var attackPositions = new List<Vector2Int>();
-          if (!isMoving)
-            attackPositions.Add(_Position + GetMovementDirection());
-
-          // Extra attack
-          if (_CardData.HasExtraRange)
-            attackPositions.Add(_Position + GetMovementDirection() * 2);
-
           //
-          foreach (var attackPos in attackPositions)
+          IEnumerator CheckAttack(bool isMoving)
           {
-            if (CanAttack(attackPos))
+
+            //
+            if (CanAttackOwner(effectString))
+            {
               yield return ProcessEffect(new EffectData()
               {
-                EffectType = $"attack({attackPos.x},{attackPos.y})"
+                EffectString = $"attack(0,0)"
               });
+            }
+
+            //
+            else
+            {
+              var attackPositions = new List<Vector2Int>();
+              if (!isMoving)
+                attackPositions.Add(_Position + GetMovementDirection());
+
+              // Extra attack
+              if (_CardData.HasExtraRange)
+                attackPositions.Add(_Position + GetMovementDirection() * 2);
+
+              //
+              foreach (var attackPos in attackPositions)
+              {
+                if (CanAttack(attackPos))
+                  yield return ProcessEffect(new EffectData()
+                  {
+                    EffectString = $"attack({attackPos.x},{attackPos.y})"
+                  });
+              }
+            }
           }
-        }
 
-        // Check if has movement
-        if (CanMove())
-        {
-          yield return EffectFired();
+          // Check if has movement
+          if (CanMove())
+          {
+            yield return EffectFired();
 
-          // Check extra range attack
-          yield return CheckAttack(true);
+            // Check extra range attack
+            yield return CheckAttack(true);
 
-          //
-          yield return SmoothMove(false);
-        }
+            //
+            yield return SmoothMove(false);
+          }
 
-        // Else, check in front; check attack
-        else if (CanAttack(false))
-        {
-          yield return EffectFired();
-          yield return CheckAttack(false);
-        }
+          // Else, check in front; check attack
+          else if (CanAttack(false, effectString))
+          {
+            yield return EffectFired();
+            yield return CheckAttack(false);
+          }
 
-// jump not working with object
+          // jump not working with object
 
-        // Check jump ally
-        else if (CanJump())
-        {
-          yield return EffectFired();
-          yield return SmoothMove(true);
+          // Check jump ally
+          else if (CanJump())
+          {
+            yield return EffectFired();
+            yield return SmoothMove(true);
+          }
         }
       }
 
@@ -746,7 +813,36 @@ public class ObjectController
       }
     }
 
-    CardObject[] getTargets(string targetString)
+    //
+    bool TargetIsCards(string targetString)
+    {
+      return targetString.Contains("Card");
+    }
+
+    //
+    HandController _ownerHand { get { return (_OwnerId == 0 ? GameController.s_Singleton._EnemyController._OwnerController : PlayerController.s_LocalPlayer._OwnerController)._Hand; } }
+    CardController.CardData[] GetCardTargets(string targetString)
+    {
+      Debug.Log($"Gathering card targets: {targetString}");
+
+      var targetList = new List<CardController.CardData>();
+
+      // Gather random unit card
+      if (targetString == "randomSelfCard")
+      {
+        var cards = _ownerHand.GetCards()
+          .Where(x => x.CardData.CardInstanceData.Health > 0)
+          .ToList();
+        if (cards.Count > 0)
+          targetList.Add(cards[UnityEngine.Random.Range(0, cards.Count)].CardData);
+      }
+
+      //
+      return targetList.ToArray();
+    }
+
+    //
+    CardObject[] GetTargets(string targetString)
     {
       Debug.Log($"Gathering targets: {targetString}");
 
@@ -835,7 +931,7 @@ public class ObjectController
 
 
       }
-      Debug.Log(targetList.Count);
+      //Debug.Log(targetList.Count);
 
       //
       return targetList.ToArray();
@@ -904,7 +1000,7 @@ public class ObjectController
         otherObject.Hide();
         yield return ProcessEffect(new EffectData()
         {
-          EffectType = objectBehavior,
+          EffectString = objectBehavior,
 
           _forceViewedObject0 = otherObject
         });

@@ -7,7 +7,7 @@ public class HandController
 {
 
   //
-  PlayerController _playerController;
+  PlayerController.OwnerController _ownerController;
   public bool _HasSelectedCard { get { return _cardSelected.HasCard; } }
 
   // Card FX
@@ -19,7 +19,7 @@ public class HandController
   {
     public int HandIndex;
     public bool HasCard { get { return HandIndex > -1; } }
-    public CardController.CardData CardData { get { return cardHandData.Data; } }
+    public CardController.CardData CardData { get { return cardHandData.CardData; } }
     public GameObject GameObject { get { return cardHandData.GameObject; } }
 
     HandController playerHand;
@@ -35,9 +35,9 @@ public class HandController
 
   // Create empty player hand
   List<CardController.CardHandData> _cards;
-  public HandController(PlayerController playerController)
+  public HandController(PlayerController.OwnerController ownerController)
   {
-    _playerController = playerController;
+    _ownerController = ownerController;
 
     _cards = new();
 
@@ -132,7 +132,7 @@ public class HandController
         // View focused card
         if (Input.GetMouseButtonUp(1))
         {
-          _playerController._Deck.ShowCardViewer(_cardFocused.CardData.CardId);
+          _ownerController._Deck.ShowCardViewer(_cardFocused.CardData);
         }
       }
 
@@ -144,13 +144,17 @@ public class HandController
           {
             // Check can play card
             if (canPlayCard())
-              OnCardPlayed(_playerController._TileHovered);
+              PlayCard(_cardSelected.HandIndex, _cardSelected.CardData, PlayerController.s_LocalPlayer._TileHovered);
             else
+            {
               _cardSelected.HandIndex = -1;
+              UpdateHandManaCosts(Vector2Int.zero);
+            }
           }
           else
           {
             _cardSelected.HandIndex = -1;
+            UpdateHandManaCosts(Vector2Int.zero);
           }
         }
 
@@ -166,11 +170,12 @@ public class HandController
       return false;
 
     //
-    var cardObject = ObjectController.GetCardObject(_playerController._TileHovered);
+    var tileHovered = PlayerController.s_LocalPlayer._TileHovered;
+    var cardObject = ObjectController.GetCardObject(tileHovered);
 
     // Check cost
-    var manaAvailable = _playerController._Mana;
-    var cardCost = CardController.GetCardManaCost(_playerController._OwnerId, _cardSelected.CardData, _playerController._TileHovered);
+    var manaAvailable = _ownerController._Mana;
+    var cardCost = CardController.GetCardManaCost(_ownerController._OwnerId, _cardSelected.CardData, tileHovered);
     if (manaAvailable < cardCost)
       return false;
 
@@ -182,17 +187,14 @@ public class HandController
     }
 
     // Check on correct side of battlefield
-    var battlefieldYRange = _playerController._OwnerId == 0 ?
-      new Vector2Int(ObjectController.s_TileMapSize.y / 2, ObjectController.s_TileMapSize.y - 1) :
-      new Vector2Int(0, ObjectController.s_TileMapSize.y / 2 - 1);
-    if (_playerController._TileHovered.y < battlefieldYRange.x || _playerController._TileHovered.y > battlefieldYRange.y)
+    if (!PlayerController.TilemapController.IsTileOnCorrectBattlefield(_ownerController._OwnerId, tileHovered))
       return false;
 
     // Check unit
     if (cardObject == null)
     {
       // Check object
-      if (_cardSelected.CardData.IsObject && ObjectController.IsDeployTile(_playerController._TileHovered))
+      if (_cardSelected.CardData.IsObject && ObjectController.IsDeployTile(tileHovered))
         return false;
 
       return true;
@@ -209,41 +211,58 @@ public class HandController
     //Debug.Log($"Card selected: {_cardSelected.CardData.TextTitle}");
   }
 
-  void OnCardPlayed(Vector2Int atPos)
+  public void PlayCard(int cardIndex, CardController.CardData cardData, Vector2Int atPos)
   {
     //Debug.Log($"Card played: {_cardSelected.CardData.TextTitle}");
 
-    if (_cardFx_Selected.parent == _cardSelected.GameObject.transform)
-      _cardFx_Selected.SetParent(_cardFx_Container);
+    if (_ownerController._OwnerId != 0)
+    {
+      if (_cardFx_Selected.parent == _cardSelected.GameObject.transform)
+        _cardFx_Selected.SetParent(_cardFx_Container);
+    }
 
-    var cardData = _cardSelected.CardData;
-
-    RemoveCard(_cardSelected.HandIndex);
-    _cardSelected.HandIndex = -1;
-
-    _cardFx_Selected.gameObject.SetActive(false);
+    RemoveCard(cardIndex);
+    if (_ownerController._OwnerId != 0)
+    {
+      _cardSelected.HandIndex = -1;
+      _cardFx_Selected.gameObject.SetActive(false);
+    }
 
     //
-    CardController.PlayCardAt(_playerController._OwnerId, cardData, atPos);
-    UpdateHandManaCosts(Vector2Int.zero);
+    CardController.PlayCardAt(_ownerController._OwnerId, cardData, atPos);
+    if (_ownerController._OwnerId != 0)
+      UpdateHandManaCosts(Vector2Int.zero);
 
     //
-    _playerController.OnCardPlayed(cardData, atPos);
+    _ownerController.OnCardPlayed(cardData, atPos);
   }
 
   // Add a card to the player's hand by Id
   public void AddCard(int cardId)
   {
     var cardBase = CardController.SpawnCardBase(
-      cardId,
+      CardController.GetCardData(cardId),
       CardController.s_Singleton._CardBase.transform.parent,
-      _playerController._Deck._DeckIcon.position
+      _ownerController._Deck._DeckIcon.position
     );
 
     //
-    _cards.Add(new CardController.CardHandData()
+    _cards.Add(new CardController.CardHandData(cardId)
     {
-      Id = cardId,
+      GameObject = cardBase
+    });
+  }
+  public void AddCard(CardController.CardData cardData)
+  {
+    var cardBase = _ownerController._OwnerId == 0 ? null : CardController.SpawnCardBase(
+      cardData,
+      CardController.s_Singleton._CardBase.transform.parent,
+      _ownerController._Deck._DeckIcon.position
+    );
+
+    //
+    _cards.Add(new CardController.CardHandData(cardData)
+    {
       GameObject = cardBase
     });
   }
@@ -255,7 +274,7 @@ public class HandController
     var card = _cards[handIndex];
     _cards.RemoveAt(handIndex);
 
-    _playerController._Deck.DiscardCard(card);
+    _ownerController._Deck.DiscardCard(card);
   }
 
   //
@@ -264,13 +283,37 @@ public class HandController
 
     foreach (var card in _cards)
     {
-      var cardDataClone = CardController.CardData.Clone(card.Data);
-      cardDataClone.CardInstanceData.Cost = _playerController._Hand._cardSelected.HasCard ?
-        CardController.GetCardManaCost(_playerController._OwnerId, cardDataClone, atPos) :
+      var cardDataClone = CardController.CardData.Clone(card.CardData);
+      cardDataClone.CardInstanceData.Cost = _ownerController._Hand._cardSelected.HasCard ?
+        CardController.GetCardManaCost(_ownerController._OwnerId, cardDataClone, atPos) :
         cardDataClone.CardInstanceData.Cost;
       CardController.SetCardBaseData(card.GameObject, cardDataClone);
     }
 
+  }
+
+  //
+  public void UpdateHand()
+  {
+
+    //UpdateHandManaCosts();
+
+    foreach (var card in _cards)
+    {
+      CardController.SetCardBaseData(card.GameObject, card.CardData);
+    }
+
+  }
+
+  //
+  public List<CardController.CardHandData> GetCards()
+  {
+    return _cards;
+  }
+  public CardController.CardData GetRandomCard()
+  {
+    if (_cards.Count == 0) return null;
+    return _cards[Random.Range(0, _cards.Count)].CardData;
   }
 
 }
