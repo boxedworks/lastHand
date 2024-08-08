@@ -64,6 +64,26 @@ public class PlayerController : MonoBehaviour
       _Mana = 4;
       _Deck.UpdateManaDisplay();
     }
+
+    //
+    public bool OwnerIdIsAlly(int otherOwnerId)
+    {
+      return _OwnerId == 0 ? otherOwnerId == 0 : otherOwnerId != 0;
+    }
+    public bool OwnerIdIsAlly(OwnerController otherOwner)
+    {
+      return OwnerIdIsAlly(otherOwner._OwnerId);
+    }
+        public bool OwnerIdIsAlly(ObjectController.CardObject otherObject)
+    {
+      return OwnerIdIsAlly(otherObject._OwnerId);
+    }
+
+    //
+    public static OwnerController GetOwnerController(int ownerId)
+    {
+      return ownerId == 0 ? GameController.s_Singleton._EnemyController._OwnerController : s_Players[0]._OwnerController;
+    }
   }
   public OwnerController _OwnerController;
 
@@ -249,8 +269,8 @@ public class PlayerController : MonoBehaviour
     }
 
     //
-    Vector2Int _attackingOwnerPos = new Vector2Int(3, 2);
-    int _attackingOwnerDir = 1;
+    Vector2Int _attackingOwnerPos;
+    int _attackingOwnerDir;
     public void SetAttackingOwnerIndicator(Vector2Int tilePos, int ownerId)
     {
       _attackingOwnerPos = tilePos;

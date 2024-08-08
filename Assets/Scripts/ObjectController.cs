@@ -6,6 +6,7 @@ using System.Linq;
 using System;
 using Unity.VisualScripting;
 using UnityEditor.Rendering;
+using Mirror.Examples.MultipleAdditiveScenes;
 
 public class ObjectController
 {
@@ -270,6 +271,7 @@ public class ObjectController
 
     //
     public int _OwnerId;
+    public PlayerController.OwnerController _OwnerController { get { return PlayerController.OwnerController.GetOwnerController(_OwnerId); } }
 
     // Tile position
     public Vector2Int _Position;
@@ -450,7 +452,7 @@ public class ObjectController
       foreach (var attackPos in attackPositions)
       {
         var other = GetCardObject(attackPos);
-        if (other != null && IsEnemy(other))
+        if (other != null && !_OwnerController.OwnerIdIsAlly(other))
           return true;
       }
 
@@ -462,7 +464,7 @@ public class ObjectController
       if (_CardData.IsStationary) return false;
 
       var other = GetCardObject(attackPos);
-      if (other != null && IsEnemy(other))
+      if (other != null && !_OwnerController.OwnerIdIsAlly(other))
         return true;
 
       return false;
@@ -533,9 +535,17 @@ public class ObjectController
     public IEnumerator TrySmoothSpell(CardController.CardData spellData, Action onComplete)
     {
 
+      // Split spell details per spell type
+      var effectString = spellData.BehaviorPattern[6..];
+      if (spellData.IsAllySpell)
+        effectString = effectString[4..];
+      else if (spellData.IsEnemySpell)
+        effectString = effectString[5..];
+
+      //
       yield return ProcessEffect(new EffectData()
       {
-        EffectString = spellData.BehaviorPattern[6..],
+        EffectString = effectString,
 
         _forceViewedCardData0 = spellData
       });
@@ -627,7 +637,7 @@ public class ObjectController
           }
 
           //
-          _ownerHand.UpdateHand();
+          _OwnerController._Hand.UpdateHand();
         }
 
         // Check card object targets
@@ -667,7 +677,7 @@ public class ObjectController
           PlayerController.TilemapController.s_Singleton.SetAttackingOwnerIndicator(_Position, _OwnerId);
           yield return new WaitForSeconds(1f);
 
-          var ownerController = _OwnerId == 0 ? PlayerController.s_Players[0]._OwnerController : GameController.s_Singleton._EnemyController._OwnerController;
+          var ownerController = PlayerController.OwnerController.GetOwnerController(_OwnerId == 1 ? 0 : 1);
           var ownerHealth = ownerController._Health;
           ownerController.SetHealth(ownerHealth - _CardData.CardInstanceData.Attack);
 
@@ -722,6 +732,36 @@ public class ObjectController
           );
 
           PlayerController.TilemapController.SetViewedObject(0, newObject);
+          yield return new WaitForSeconds(0.5f);
+        }
+      }
+
+      // Check return card to hand
+      else if (effectString.StartsWith("toHand("))
+      {
+        var effectDetails = effectString[7..^1].Split(",");
+        var targetsString = effectDetails[0].Trim();
+        var burnString = effectDetails[1].Trim();
+        foreach (var target in GetTargets(targetsString))
+        {
+          yield return EffectFired();
+
+          PlayerController.TilemapController.SetViewedObject(1, target);
+          yield return new WaitForSeconds(1f);
+
+          // Add card to hand with 0 cost and burn
+          var ownerController = PlayerController.OwnerController.GetOwnerController(_OwnerId);
+          if (burnString == "true")
+          {
+            target._CardData.CardInstanceData.Cost = 0;
+            if (!target._CardData.HasBurnEffect)
+              target._CardData.BehaviorPattern += ";burnOnUse";
+          }
+          ownerController._Hand.AddCard(target._CardData, HandController.CardSpawnSource.CARD_VIEWER_1);
+
+          PlayerController.TilemapController.HideViewedObject(1);
+          target.Destroy();
+
           yield return new WaitForSeconds(0.5f);
         }
       }
@@ -804,7 +844,8 @@ public class ObjectController
       if (effectFired)
       {
 
-        PlayerController.TilemapController.SetViewedObject(0, this);
+        if (!_Destroyed)
+          PlayerController.TilemapController.SetViewedObject(0, this);
         PlayerController.TilemapController.HideViewedObject(1);
         PlayerController.TilemapController.s_Singleton.ClearAttackTile();
         PlayerController.TilemapController.s_Singleton.ClearBuffTile();
@@ -820,7 +861,6 @@ public class ObjectController
     }
 
     //
-    HandController _ownerHand { get { return (_OwnerId == 0 ? GameController.s_Singleton._EnemyController._OwnerController : PlayerController.s_LocalPlayer._OwnerController)._Hand; } }
     CardController.CardData[] GetCardTargets(string targetString)
     {
       Debug.Log($"Gathering card targets: {targetString}");
@@ -830,7 +870,7 @@ public class ObjectController
       // Gather random unit card
       if (targetString == "randomSelfCard")
       {
-        var cards = _ownerHand.GetCards()
+        var cards = _OwnerController._Hand.GetCards()
           .Where(x => x.CardData.CardInstanceData.Health > 0)
           .ToList();
         if (cards.Count > 0)
@@ -891,7 +931,7 @@ public class ObjectController
       // Gather a random enemy
       else if (targetString == "randomEnemy")
       {
-        var enemyTargets = s_Singleton._objectsAll.Where(x => !x._CardData.IsObject && !OwnerIdIsAlly(x._OwnerId)).ToList();
+        var enemyTargets = s_Singleton._objectsAll.Where(x => !x._CardData.IsObject && !_OwnerController.OwnerIdIsAlly(x)).ToList();
         if (enemyTargets.Count > 0)
           AddTarget(enemyTargets[UnityEngine.Random.Range(0, enemyTargets.Count)]);
       }
@@ -918,10 +958,10 @@ public class ObjectController
         switch (targetModifier)
         {
           case "ally":
-            targetList = targetList.Where(x => OwnerIdIsAlly(x._OwnerId)).ToList();
+            targetList = targetList.Where(x => _OwnerController.OwnerIdIsAlly(x)).ToList();
             break;
           case "enemy":
-            targetList = targetList.Where(x => !OwnerIdIsAlly(x._OwnerId)).ToList();
+            targetList = targetList.Where(x => !_OwnerController.OwnerIdIsAlly(x)).ToList();
             break;
 
           default:
@@ -936,13 +976,6 @@ public class ObjectController
       //
       return targetList.ToArray();
     }
-
-    //
-    bool OwnerIdIsAlly(int otherOwnerId)
-    {
-      return _OwnerId == 0 ? otherOwnerId == 0 : otherOwnerId != 0;
-    }
-
 
     //
     public IEnumerator SmoothMove(bool isJump)
@@ -1092,12 +1125,6 @@ public class ObjectController
             PlayerController.TilemapController.HideViewedObject(i);
       }
 
-    }
-
-    //
-    public bool IsEnemy(CardObject other)
-    {
-      return _OwnerId == 0 ? other._OwnerId > 0 : other._OwnerId == 0;
     }
 
     //

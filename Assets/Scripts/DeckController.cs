@@ -9,14 +9,14 @@ public class DeckController
 
   PlayerController.OwnerController _ownerController;
 
-  public RectTransform _DeckIcon, _DiscardIcon, _DeckViewer, _CardViewer;
-  TMPro.TextMeshProUGUI _textDeckCount, _textDiscardCount, _textManaDisplay;
+  public RectTransform _DeckIcon, _DiscardIcon, _BurnIcon, _DeckViewer, _CardViewer;
+  TMPro.TextMeshProUGUI _textDeckCount, _textDiscardCount, _textBurnCount, _textManaDisplay;
 
-  RectTransform _cardFx_deckSelect, _cardFx_discardSelect, _cardFx_deckViewerSelect, _cardFx_deckViewerBg, _cardFx_cardViewerBg;
+  RectTransform _cardFx_deckSelect, _cardFx_discardSelect, _cardFx_burnSelect, _cardFx_deckViewerSelect, _cardFx_deckViewerBg, _cardFx_cardViewerBg;
 
-  List<CardController.CardHandData> _cardsAll, _cardsDeck, _cardsDiscard, _cardReshuffing;
+  List<CardController.CardHandData> _cardsAll, _cardsDeck, _cardsDiscard, _cardsBurn, _animatingCardsReshuffle;
 
-  List<GameObject> _discardingCards;
+  List<GameObject> _animatingCardsDiscard, _animatingCardsBurn;
 
   public bool _GameInteractive { get { return !_displayingDeck && !_displayingCard; } }
   public DeckController(PlayerController.OwnerController ownerController)
@@ -26,9 +26,11 @@ public class DeckController
     _cardsAll = new();
     _cardsDeck = new();
     _cardsDiscard = new();
+    _cardsBurn = new();
 
-    _discardingCards = new();
-    _cardReshuffing = new();
+    _animatingCardsDiscard = new();
+    _animatingCardsReshuffle = new();
+    _animatingCardsBurn = new();
 
     // UI
     if (_ownerController._OwnerId == 1)
@@ -48,6 +50,13 @@ public class DeckController
       _cardFx_discardSelect = _DiscardIcon.parent.GetChild(0).GetChild(0) as RectTransform;
       _textDiscardCount = _DiscardIcon.GetChild(0).GetChild(1).GetChild(2).GetComponent<TMPro.TextMeshProUGUI>();
       _textDiscardCount.text = $"{_cardsDiscard.Count}";
+
+      _BurnIcon = GameObject.Find("PlayerBurn").transform.Find("CardBase") as RectTransform;
+      //_BurnIcon.GetChild(0).GetChild(0).GetComponent<Image>().color = deckColor;
+      //_BurnIcon.GetChild(0).GetChild(1).GetChild(1).GetComponent<Image>().color = deckColor;
+      _cardFx_burnSelect = _BurnIcon.parent.GetChild(0).GetChild(0) as RectTransform;
+      _textBurnCount = _BurnIcon.GetChild(0).GetChild(1).GetChild(2).GetComponent<TMPro.TextMeshProUGUI>();
+      _textBurnCount.text = $"{_cardsBurn.Count}";
 
       _DeckViewer = GameObject.Find("DeckViewer").transform as RectTransform;
       _cardFx_deckViewerBg = _DeckViewer.GetChild(0).GetChild(0) as RectTransform;
@@ -77,6 +86,8 @@ public class DeckController
       _cardsDeck.Add(new CardController.CardHandData(CardController.GetCardIdByName("supply crate")));
     for (var i = 0; i < 1; i++)
       _cardsDeck.Add(new CardController.CardHandData(CardController.GetCardIdByName("whetstone")));
+    for (var i = 0; i < 1; i++)
+      _cardsDeck.Add(new CardController.CardHandData(CardController.GetCardIdByName("retreat")));
 
     if (_textDeckCount)
       _textDeckCount.text = $"{_cardsDeck.Count}";
@@ -88,9 +99,9 @@ public class DeckController
   {
 
     // Move discarded cards to discard pile
-    for (var i = _discardingCards.Count - 1; i >= 0; i--)
+    for (var i = _animatingCardsDiscard.Count - 1; i >= 0; i--)
     {
-      var cardObject = _discardingCards[i];
+      var cardObject = _animatingCardsDiscard[i];
 
       var desiredPosition = _DiscardIcon.position;
       cardObject.transform.position += (desiredPosition - cardObject.transform.position) * Time.deltaTime * 5f;
@@ -98,7 +109,22 @@ public class DeckController
       if ((desiredPosition - cardObject.transform.position).magnitude < 20f)
       {
         GameObject.Destroy(cardObject);
-        _discardingCards.RemoveAt(i);
+        _animatingCardsDiscard.RemoveAt(i);
+      }
+    }
+
+    // Move burn cards to burn pile
+    for (var i = _animatingCardsBurn.Count - 1; i >= 0; i--)
+    {
+      var cardObject = _animatingCardsBurn[i];
+
+      var desiredPosition = _BurnIcon.position;
+      cardObject.transform.position += (desiredPosition - cardObject.transform.position) * Time.deltaTime * 5f;
+
+      if ((desiredPosition - cardObject.transform.position).magnitude < 20f)
+      {
+        GameObject.Destroy(cardObject);
+        _animatingCardsBurn.RemoveAt(i);
       }
     }
 
@@ -120,7 +146,7 @@ public class DeckController
           _DiscardIcon.position
         );
 
-        _cardReshuffing.Add(new CardController.CardHandData(cardDiscarded.CardData)
+        _animatingCardsReshuffle.Add(new CardController.CardHandData(cardDiscarded.CardData)
         {
           GameObject = cardBase
         });
@@ -128,9 +154,9 @@ public class DeckController
       }
 
       // Move reshuffle cards to draw pile
-      for (var i = _cardReshuffing.Count - 1; i >= 0; i--)
+      for (var i = _animatingCardsReshuffle.Count - 1; i >= 0; i--)
       {
-        var cardObject = _cardReshuffing[i];
+        var cardObject = _animatingCardsReshuffle[i];
 
         var desiredPosition = _DeckIcon.position;
         cardObject.GameObject.transform.position += (desiredPosition - cardObject.GameObject.transform.position) * Time.deltaTime * 12f;
@@ -138,7 +164,7 @@ public class DeckController
         if ((desiredPosition - cardObject.GameObject.transform.position).magnitude < 20f)
         {
           GameObject.Destroy(cardObject.GameObject);
-          _cardReshuffing.RemoveAt(i);
+          _animatingCardsReshuffle.RemoveAt(i);
 
           _cardsDeck.Add(new CardController.CardHandData(cardObject.CardData));
           _textDeckCount.text = $"{_cardsDeck.Count}";
@@ -146,7 +172,7 @@ public class DeckController
       }
 
       //
-      if (_reshuffleAmount == 0 && _cardReshuffing.Count == 0)
+      if (_reshuffleAmount == 0 && _animatingCardsReshuffle.Count == 0)
       {
         _reshuffling = false;
 
@@ -236,7 +262,7 @@ public class DeckController
           _cardFx_deckSelect.gameObject.SetActive(true);
 
           if (Input.GetMouseButtonUp(0))
-            ShowDisplayDeck(true);
+            ShowDisplayDeck(DeckDisplayType.DECK);
         }
         else
           _cardFx_deckSelect.gameObject.SetActive(false);
@@ -247,10 +273,21 @@ public class DeckController
           _cardFx_discardSelect.gameObject.SetActive(true);
 
           if (Input.GetMouseButtonUp(0))
-            ShowDisplayDeck(false);
+            ShowDisplayDeck(DeckDisplayType.DISCARD);
         }
         else
           _cardFx_discardSelect.gameObject.SetActive(false);
+
+        // Display burn
+        if (RectTransformUtility.RectangleContainsScreenPoint(_BurnIcon, Input.mousePosition))
+        {
+          _cardFx_burnSelect.gameObject.SetActive(true);
+
+          if (Input.GetMouseButtonUp(0))
+            ShowDisplayDeck(DeckDisplayType.BURN);
+        }
+        else
+          _cardFx_burnSelect.gameObject.SetActive(false);
       }
     }
 
@@ -301,7 +338,7 @@ public class DeckController
     _cardsDeck.RemoveAt(0);
 
     // Add to player hand
-    _ownerController._Hand.AddCard(nextCard.CardData);
+    _ownerController._Hand.AddCard(nextCard.CardData, HandController.CardSpawnSource.DECK);
 
     // Set deck count UI
     if (_ownerController._OwnerId != 0)
@@ -314,7 +351,7 @@ public class DeckController
 
     // Animate card gameObject to discard pile
     if (_ownerController._OwnerId != 0)
-      _discardingCards.Add(cardHandData.GameObject);
+      _animatingCardsDiscard.Add(cardHandData.GameObject);
 
     // Add card data to discard pile
     _cardsDiscard.Add(new CardController.CardHandData(cardHandData.CardData));
@@ -322,6 +359,20 @@ public class DeckController
     // Increment discard number
     if (_ownerController._OwnerId != 0)
       _textDiscardCount.text = $"{_cardsDiscard.Count}";
+  }
+  public void BurnCard(CardController.CardHandData cardHandData)
+  {
+
+    // Animate card gameObject to discard pile
+    if (_ownerController._OwnerId != 0)
+      _animatingCardsBurn.Add(cardHandData.GameObject);
+
+    // Add card data to discard pile
+    _cardsBurn.Add(new CardController.CardHandData(cardHandData.CardData));
+
+    // Increment discard number
+    if (_ownerController._OwnerId != 0)
+      _textBurnCount.text = $"{_cardsBurn.Count}";
   }
 
   //
@@ -343,14 +394,26 @@ public class DeckController
   float _deckViewerYPosition;
   int _deckViewerRowHeight;
   List<CardController.CardHandData> _deckViewerCards;
-  void ShowDisplayDeck(bool isDeck)
+  public enum DeckDisplayType
   {
-    var cards = isDeck ? _cardsDeck : _cardsDiscard;
+    DECK,
+    DISCARD,
+    BURN
+  }
+  void ShowDisplayDeck(DeckDisplayType deckDisplayType)
+  {
+    var cards = deckDisplayType switch
+    {
+      DeckDisplayType.DISCARD => _cardsDiscard,
+      DeckDisplayType.BURN => _cardsBurn,
+
+      _ => _cardsDeck
+    };
     if (cards.Count == 0)
       return;
 
     // Order cards by ID if showing deck
-    if (isDeck)
+    if (deckDisplayType == DeckDisplayType.DECK)
     {
       cards = cards.OrderBy(x => -x.Id).ToList();
     }

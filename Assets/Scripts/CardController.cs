@@ -150,7 +150,7 @@ public class CardController
       }
     });
 
-    RegisterCard(28, new CardData()
+    RegisterCard(57, new CardData()
     {
       TextTitle = "Supply Crate",
       TextDescription = "",
@@ -168,7 +168,7 @@ public class CardController
       }
     });
 
-    RegisterCard(30, new CardData()
+    RegisterCard(59, new CardData()
     {
       TextTitle = "Whetstone",
       TextDescription = "",
@@ -186,7 +186,7 @@ public class CardController
       }
     });
 
-    RegisterCard(34, new CardData()
+    RegisterCard(63, new CardData()
     {
       TextTitle = "Prepare",
       TextDescription = "",
@@ -198,6 +198,24 @@ public class CardController
       CardInstanceData = new CardInstanceData()
       {
         Cost = 1,
+
+        Health = 0,
+        Attack = 0
+      }
+    });
+
+    RegisterCard(66, new CardData()
+    {
+      TextTitle = "Retreat",
+      TextDescription = "",
+
+      Deck = CardData.DeckType.KNIGHT,
+
+      BehaviorPattern = "spellAlly:toHand(self,true)",
+
+      CardInstanceData = new CardInstanceData()
+      {
+        Cost = 3,
 
         Health = 0,
         Attack = 0
@@ -343,13 +361,16 @@ public class CardController
     /// Card behaviors
     // "m1b1:move-f"
     public string BehaviorPattern;
-    public bool IsSpell { get { return BehaviorPattern.Contains("spell:"); } }
+    public bool IsSpell { get { return BehaviorPattern.StartsWith("spell"); } }
+    public bool IsAllySpell { get { return BehaviorPattern.StartsWith("spellAlly:"); } }
+    public bool IsEnemySpell { get { return BehaviorPattern.StartsWith("spellEnemy:"); } }
     public bool IsObject { get { return BehaviorPattern.Contains("object:"); } }
     public bool HasStartEffect { get { return BehaviorPattern.Contains("start:"); } }
     public bool HasTapEffect { get { return BehaviorPattern.Contains("tap:"); } }
     public bool HasBattleCrossEffect { get { return BehaviorPattern.Contains("battlecross:"); } }
     public bool IsStationary { get { return BehaviorPattern.StartsWith("0"); } }
     public bool HasExtraRange { get { return BehaviorPattern.Contains("range(1)"); } }
+    public bool HasBurnEffect { get { return BehaviorPattern.Contains("burnOnUse"); } }
 
     //
     public CardInstanceData CardInstanceData;
@@ -392,8 +413,7 @@ public class CardController
     public int Health, Attack;
 
     //
-    public Dictionary<string, string> CardEffects;
-
+    public Dictionary<string, List<string>> CardEffects;
   }
 
   //

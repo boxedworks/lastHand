@@ -24,6 +24,7 @@ public class HandController
 
     HandController playerHand;
     CardController.CardHandData cardHandData { get { return playerHand._cards[HandIndex]; } }
+    public PlayerController.OwnerController OwnerController { get { return playerHand._ownerController; } }
     public SimpleCardReference(HandController playerHand)
     {
       HandIndex = -1;
@@ -183,7 +184,18 @@ public class HandController
     var isSpell = _cardSelected.CardData.IsSpell;
     if (isSpell)
     {
-      return cardObject != null && !cardObject._CardData.IsObject;
+      if (cardObject != null && !cardObject._CardData.IsObject)
+      {
+
+        // Check ally-only / enemy-only spells
+        if (
+          (_cardSelected.CardData.IsAllySpell && !_cardSelected.OwnerController.OwnerIdIsAlly(cardObject)) ||
+          (_cardSelected.CardData.IsEnemySpell && _cardSelected.OwnerController.OwnerIdIsAlly(cardObject))
+          )
+          return false;
+        return true;
+      }
+      return false;
     }
 
     // Check on correct side of battlefield
@@ -252,12 +264,22 @@ public class HandController
       GameObject = cardBase
     });
   }
-  public void AddCard(CardController.CardData cardData)
+  public enum CardSpawnSource
+  {
+    DECK,
+    CARD_VIEWER_1,
+  }
+  public void AddCard(CardController.CardData cardData, CardSpawnSource cardSpawnSource)
   {
     var cardBase = _ownerController._OwnerId == 0 ? null : CardController.SpawnCardBase(
       cardData,
       CardController.s_Singleton._CardBase.transform.parent,
-      _ownerController._Deck._DeckIcon.position
+      cardSpawnSource switch
+      {
+        CardSpawnSource.CARD_VIEWER_1 => GameObject.Find("CardObjectDisplay").transform.GetChild(1).position,
+
+        _ => _ownerController._Deck._DeckIcon.position
+      }
     );
 
     //
@@ -274,7 +296,11 @@ public class HandController
     var card = _cards[handIndex];
     _cards.RemoveAt(handIndex);
 
-    _ownerController._Deck.DiscardCard(card);
+    // Check discard vs burn
+    if (card.CardData.HasBurnEffect)
+      _ownerController._Deck.BurnCard(card);
+    else
+      _ownerController._Deck.DiscardCard(card);
   }
 
   //
